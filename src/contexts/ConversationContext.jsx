@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
-import { OllamaContext } from "./OllamaContext";
-import { SettingsContext } from "./SettingsContext";
+import OllamaContext from "./OllamaContext";
+import SettingsContext from "./SettingsContext";
 
 const ConversationContext = createContext();
 

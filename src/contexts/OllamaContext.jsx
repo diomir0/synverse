@@ -140,3 +140,5 @@ export const useOllama = () => {
   }
   return context;
 };
+
+export default OllamaContext;

@@ -1,3 +1,4 @@
+import { Check } from "@mui/icons-material";
 import React, { createContext, useContext, useState, useEffect } from "react";
 
 const OllamaContext = createContext();
@@ -49,9 +50,9 @@ export const OllamaProvider = ({ children }) => {
 
     // Check immediately and then every 5 seconds
     checkOllamaStatus();
-    const interval = setInterval(checkOllamaStatus, 5000);
+    // const interval = setInterval(checkOllamaStatus, 5000);
 
-    return () => clearInterval(interval);
+    // return () => clearInterval(interval);
   }, [ollamaUrl]);
 
   const getOllamaModels = async () => {

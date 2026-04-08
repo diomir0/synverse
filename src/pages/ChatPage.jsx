@@ -9,8 +9,8 @@ import MessageInput from "../components/MessageInput";
 import { Box, Container, Grid, CircularProgress, Alert } from "@mui/material";
 
 const ChatPage = () => {
-  const { isConnected, isConnecting, currentModel, setCurrentModel, models, generateResponse } =
-    useOllama();
+  const { ollamaStatus, models, generateResponse } = useOllama();
+  const { currentModel, setCurrentModel } = useSettings();
 
   const {
     conversations,
@@ -36,7 +36,7 @@ const ChatPage = () => {
   }, [activeConversation?.messages]);
 
   const handleSendMessage = async (message) => {
-    if (!message.trim() || !isConnected || isLoading) return;
+    if (!message.trim() || ollamaStatus === "disconnected" || isLoading) return;
 
     setIsLoading(true);
     setError(null);
@@ -105,7 +105,7 @@ const ChatPage = () => {
     }
   };
 
-  if (isConnecting) {
+  if (ollamaStatus === "connecting") {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" height="100vh">
         <CircularProgress />
@@ -113,7 +113,7 @@ const ChatPage = () => {
     );
   }
 
-  if (!isConnected) {
+  if (ollamaStatus === "disconnected") {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" height="100vh">
         <Alert severity="error">Cannot connect to Ollama. Please ensure Ollama is running.</Alert>
@@ -153,7 +153,7 @@ const ChatPage = () => {
               }}
             >
               <Box>
-                <h2>Welcome to Ollama Chat</h2>
+                <h2>Welcome to Synverse</h2>
                 <p>Start a new conversation or select an existing one</p>
               </Box>
             </Box>
@@ -164,7 +164,7 @@ const ChatPage = () => {
         <MessageInput
           onSendMessage={handleSendMessage}
           isLoading={isLoading}
-          disabled={!isConnected || isLoading}
+          disabled={ollamaStatus === "disconnected" || isLoading}
         />
       </Box>
     </Box>

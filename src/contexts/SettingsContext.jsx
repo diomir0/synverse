@@ -15,6 +15,9 @@ export const SettingsProvider = ({ children }) => {
   const [autoSave, setAutoSave] = useState(() => {
     return JSON.parse(localStorage.getItem("autoSave")) || true;
   });
+  const [currentModel, setCurrentModel] = useState(() => {
+    return localStorage.getItem("currentModel") || "";
+  });
 
   useEffect(() => {
     localStorage.setItem("globalSystemPrompt", globalSystemPrompt);
@@ -28,6 +31,10 @@ export const SettingsProvider = ({ children }) => {
     localStorage.setItem("autoSave", JSON.stringify(autoSave));
   }, [autoSave]);
 
+  useEffect(() => {
+    localStorage.setItem("currentModel", currentModel);
+  }, [currentModel]);
+
   const value = {
     globalSystemPrompt,
     setGlobalSystemPrompt,
@@ -35,6 +42,8 @@ export const SettingsProvider = ({ children }) => {
     setDefaultModel,
     autoSave,
     setAutoSave,
+    currentModel,
+    setCurrentModel,
   };
 
   return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>;

@@ -3,24 +3,34 @@ import React, { createContext, useContext, useState, useEffect } from "react";
 const OllamaContext = createContext();
 
 export const OllamaProvider = ({ children }) => {
-  const [ollamaStatus, setOllamaStatus] = useState("unknown"); // 'unknown', 'connecting',
-  ("connected", "disconnected");
+  const [ollamaStatus, setOllamaStatus] = useState("unknown"); // 'unknown', 'connecting', 'connected', 'disconnected'
   const [models, setModels] = useState([]);
   const [ollamaUrl, setOllamaUrl] = useState(() => {
+    // Load from localStorage or use default
     return localStorage.getItem("ollamaUrl") || "http://localhost:11434";
   });
 
+  // Save URL to localStorage
   useEffect(() => {
     localStorage.setItem("ollamaUrl", ollamaUrl);
   }, [ollamaUrl]);
 
+  // Check Ollama status
   useEffect(() => {
     const checkOllamaStatus = async () => {
       if (ollamaStatus === "connected") return;
 
       try {
         setOllamaStatus("connecting");
-        const response = await fetch(`${ollamaUrl}/api/tags`);
+        const response = await fetch(`${ollamaUrl}/api/tags`, {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          // Add timeout to prevent hanging
+          signal: AbortSignal.timeout(5000),
+        });
+
         if (response.ok) {
           const data = await response.json();
           setModels(data.models || []);
@@ -30,28 +40,41 @@ export const OllamaProvider = ({ children }) => {
         }
       } catch (error) {
         console.error("Failed to connect to Ollama:", error);
+        if (error.name === "AbortError") {
+          console.error("Ollama connection timeout");
+        }
         setOllamaStatus("disconnected");
       }
     };
 
-    const interval = setInterval(checkOllamaStatus, 5000);
+    // Check immediately and then every 5 seconds
     checkOllamaStatus();
+    const interval = setInterval(checkOllamaStatus, 5000);
 
     return () => clearInterval(interval);
   }, [ollamaUrl]);
 
   const getOllamaModels = async () => {
     try {
-      const response = await fetch(`${ollamaUrl}/api/tags`);
+      const response = await fetch(`${ollamaUrl}/api/tags`, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        signal: AbortSignal.timeout(5000),
+      });
+
       if (response.ok) {
         const data = await response.json();
         setModels(data.models || []);
         return data.models || [];
+      } else {
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
     } catch (error) {
       console.error("Failed to fetch models:", error);
+      return [];
     }
-    return [];
   };
 
   const generateResponse = async (conversationId, prompt, model, onChunk) => {
@@ -59,11 +82,10 @@ export const OllamaProvider = ({ children }) => {
       throw new Error("Ollama is not connected");
     }
 
-    const stream = true;
     const data = {
       model: model,
       prompt: prompt,
-      stream: stream,
+      stream: true,
     };
 
     try {
@@ -73,6 +95,7 @@ export const OllamaProvider = ({ children }) => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify(data),
+        signal: AbortSignal.timeout(10000), // 10 second timeout
       });
 
       if (!response.ok) {
@@ -105,7 +128,6 @@ export const OllamaProvider = ({ children }) => {
                   return fullResponse;
                 }
               } catch (e) {
-                // Handle JSON parsing errors
                 console.error("JSON parsing error:", e);
               }
             }

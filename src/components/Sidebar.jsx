@@ -8,9 +8,7 @@ import {
   IconButton,
   Divider,
   Typography,
-  Tooltip,
   Button,
-  Fab,
 } from "@mui/material";
 import {
   Chat as ChatIcon,
@@ -18,21 +16,43 @@ import {
   Delete as DeleteIcon,
   Settings as SettingsIcon,
 } from "@mui/icons-material";
+import { useConversation } from "../contexts/ConversationContext";
 
-const Sidebar = ({
-  conversations,
-  activeConversationId,
-  setActiveConversation,
-  onCreateNew,
-  onDelete,
-}) => {
+const Sidebar = () => {
+  const { conversations, currentConversation, setConversations, setCurrentConversation } =
+    useConversation();
+
   const handleConversationClick = (conversation) => {
-    setActiveConversation(conversation);
+    setCurrentConversation(conversation);
   };
 
   const handleDeleteClick = (e, conversationId) => {
     e.stopPropagation();
-    onDelete(conversationId);
+    // Filter out the deleted conversation
+    const updatedConversations = conversations.filter((conv) => conv.id !== conversationId);
+    setConversations(updatedConversations);
+
+    // If we deleted the active conversation, switch to the first one or null
+    if (currentConversation?.id === conversationId) {
+      if (updatedConversations.length > 0) {
+        setCurrentConversation(updatedConversations[0]);
+      } else {
+        setCurrentConversation(null);
+      }
+    }
+  };
+
+  const handleCreateNew = () => {
+    const newConversation = {
+      id: Date.now(), // Simple ID generation
+      title: "New Conversation",
+      messages: [],
+      createdAt: new Date(),
+    };
+
+    const updatedConversations = [newConversation, ...conversations];
+    setConversations(updatedConversations);
+    setCurrentConversation(newConversation);
   };
 
   return (
@@ -48,7 +68,7 @@ const Sidebar = ({
       }}
     >
       <Box sx={{ p: 2, borderBottom: 1, borderColor: "divider" }}>
-        <Button fullWidth variant="contained" startIcon={<AddIcon />} onClick={onCreateNew}>
+        <Button fullWidth variant="contained" startIcon={<AddIcon />} onClick={handleCreateNew}>
           New Chat
         </Button>
       </Box>
@@ -59,13 +79,13 @@ const Sidebar = ({
             <ListItem
               key={conversation.id}
               button
-              selected={conversation.id === activeConversationId}
+              selected={conversation.id === currentConversation?.id}
               onClick={() => handleConversationClick(conversation)}
               sx={{
                 mb: 1,
                 borderRadius: 1,
                 bgcolor:
-                  conversation.id === activeConversationId ? "action.selected" : "transparent",
+                  conversation.id === currentConversation?.id ? "action.selected" : "transparent",
               }}
             >
               <ListItemIcon>

@@ -1,273 +1,232 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
-import OllamaContext from "./OllamaContext";
-import SettingsContext from "./SettingsContext";
+import { useOllama } from "./OllamaContext";
 
 const ConversationContext = createContext();
 
+// Database helper class
+class ConversationDB {
+  static dbName = "ChatConversations";
+  static storeName = "conversations";
+  static db = null;
+
+  static async init() {
+    if (this.db) return this.db;
+
+    return new Promise((resolve, reject) => {
+      const request = indexedDB.open(this.dbName, 1);
+
+      request.onerror = () => {
+        console.error("IndexedDB error:", request.error);
+        reject(request.error);
+      };
+
+      request.onsuccess = () => {
+        this.db = request.result;
+        resolve(this.db);
+      };
+
+      request.onupgradeneeded = (event) => {
+        const db = event.target.result;
+        if (!db.objectStoreNames.contains(this.storeName)) {
+          const objectStore = db.createObjectStore(this.storeName, { keyPath: "id" });
+          objectStore.createIndex("createdAt", "createdAt", { unique: false });
+          objectStore.createIndex("title", "title", { unique: false });
+        }
+      };
+    });
+  }
+
+  static async getAll() {
+    try {
+      const db = await this.init();
+      return new Promise((resolve, reject) => {
+        const transaction = db.transaction([this.storeName], "readonly");
+        const store = transaction.objectStore(this.storeName);
+        const request = store.getAll();
+
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+    } catch (error) {
+      console.error("Error getting all conversations:", error);
+      throw error;
+    }
+  }
+
+  static async save(conversation) {
+    try {
+      const db = await this.init();
+      return new Promise((resolve, reject) => {
+        const transaction = db.transaction([this.storeName], "readwrite");
+        const store = transaction.objectStore(this.storeName);
+        const request = store.put(conversation);
+
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+    } catch (error) {
+      console.error("Error saving conversation:", error);
+      throw error;
+    }
+  }
+
+  static async delete(id) {
+    try {
+      const db = await this.init();
+      return new Promise((resolve, reject) => {
+        const transaction = db.transaction([this.storeName], "readwrite");
+        const store = transaction.objectStore(this.storeName);
+        const request = store.delete(id);
+
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+    } catch (error) {
+      console.error("Error deleting conversation:", error);
+      throw error;
+    }
+  }
+}
+
 export const ConversationProvider = ({ children }) => {
+  const { ollamaConnected } = useOllama();
   const [conversations, setConversations] = useState([]);
-  const [activeConversationId, setActiveConversationId] = useState(null);
-  const [isSaving, setIsSaving] = useState(false);
-  const { ollamaStatus, models } = useContext(OllamaContext);
-  const { globalSystemPrompt } = useContext(SettingsContext);
+  const [currentConversation, setCurrentConversation] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState(null);
 
   // Load conversations from IndexedDB on mount
   useEffect(() => {
     const loadConversations = async () => {
+      if (!ollamaConnected) return;
+
       try {
-        const db = await openDB();
-        const storedConversations = await db.getAll("conversations");
-        setConversations(storedConversations);
+        setIsLoading(true);
+        setError(null);
+        const loadedConversations = await ConversationDB.getAll();
+        setConversations(loadedConversations || []);
 
-        if (storedConversations.length > 0 && !activeConversationId) {
-          setActiveConversationId(storedConversations[0].id);
+        // Set the most recent conversation as active if none is set
+        if (loadedConversations && loadedConversations.length > 0 && !currentConversation) {
+          const latest = loadedConversations.reduce((latest, conv) =>
+            !latest || new Date(conv.createdAt) > new Date(latest.createdAt) ? conv : latest,
+          );
+          setCurrentConversation(latest);
         }
-      } catch (error) {
-        console.error("Failed to load conversations:", error);
+      } catch (err) {
+        console.error("Failed to load conversations:", err);
+        setError("Failed to load conversations: " + err.message);
+        // Initialize with empty array even if there's an error
+        setConversations([]);
+      } finally {
+        setIsLoading(false);
       }
     };
 
-    if (ollamaStatus === "connected") {
-      loadConversations();
-    }
-  }, [ollamaStatus, activeConversationId]);
+    loadConversations();
+  }, [ollamaConnected, currentConversation]);
 
-  // Auto-save conversations every 5 minutes
-  useEffect(() => {
-    if (ollamaStatus !== "connected") return;
-
-    const interval = setInterval(async () => {
-      if (conversations.length > 0) {
-        try {
-          const db = await openDB();
-          for (const conv of conversations) {
-            await db.put("conversations", conv);
-          }
-        } catch (error) {
-          console.error("Auto-save failed:", error);
+  // Save conversation to IndexedDB
+  const saveConversation = async (conversation) => {
+    try {
+      await ConversationDB.save(conversation);
+      setConversations((prev) => {
+        const existingIndex = prev.findIndex((c) => c.id === conversation.id);
+        if (existingIndex >= 0) {
+          const updated = [...prev];
+          updated[existingIndex] = conversation;
+          return updated;
         }
-      }
-    }, 300000); // 5 minutes
-
-    return () => clearInterval(interval);
-  }, [conversations, ollamaStatus]);
-
-  // Save conversation before app exit
-  useEffect(() => {
-    const handleBeforeUnload = async () => {
-      if (conversations.length > 0) {
-        try {
-          const db = await openDB();
-          for (const conv of conversations) {
-            await db.put("conversations", conv);
-          }
-        } catch (error) {
-          console.error("Save before exit failed:", error);
-        }
-      }
-    };
-
-    window.addEventListener("beforeunload", handleBeforeUnload);
-    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
-  }, [conversations]);
-
-  const openDB = async () => {
-    if ("indexedDB" in window) {
-      return new Promise((resolve, reject) => {
-        const request = indexedDB.open("OllamaChatDB", 1);
-
-        request.onerror = () => reject(request.error);
-        request.onsuccess = () => resolve(request.result);
-
-        request.onupgradeneeded = (event) => {
-          const db = event.target.result;
-          if (!db.objectStoreNames.contains("conversations")) {
-            const store = db.createObjectStore("conversations", { keyPath: "id" });
-            store.createIndex("createdAt", "createdAt", { unique: false });
-            store.createIndex("title", "title", { unique: false });
-          }
-        };
+        return [...prev, conversation];
       });
-    } else {
-      throw new Error("IndexedDB not supported");
+      return conversation;
+    } catch (err) {
+      console.error("Failed to save conversation:", err);
+      setError("Failed to save conversation: " + err.message);
+      throw err;
     }
   };
 
-  const createNewConversation = async (modelName) => {
-    if (!modelName) return null;
-
+  // Create new conversation
+  const createConversation = async (title = "New Conversation") => {
     const newConversation = {
       id: Date.now().toString(),
-      title: `New Chat ${new Date().toLocaleDateString()}`,
+      title: title,
       messages: [],
-      model: modelName,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+      createdAt: new Date(),
+      updatedAt: new Date(),
       tags: [],
+      model: "llama3",
     };
 
     try {
-      const db = await openDB();
-      await db.add("conversations", newConversation);
-
-      setConversations((prev) => [newConversation, ...prev]);
-      setActiveConversationId(newConversation.id);
-
+      await saveConversation(newConversation);
+      setCurrentConversation(newConversation);
       return newConversation;
-    } catch (error) {
-      console.error("Failed to create conversation:", error);
-      return null;
+    } catch (err) {
+      setError("Failed to create conversation: " + err.message);
+      throw err;
     }
   };
 
-  const loadConversation = async (conversationId) => {
+  // Delete conversation
+  const deleteConversation = async (id) => {
     try {
-      const db = await openDB();
-      const conversation = await db.get("conversations", conversationId);
+      await ConversationDB.delete(id);
+      setConversations((prev) => prev.filter((c) => c.id !== id));
 
-      if (conversation) {
-        setActiveConversationId(conversationId);
-        return conversation;
+      if (currentConversation?.id === id) {
+        const remaining = conversations.filter((c) => c.id !== id);
+        setCurrentConversation(remaining.length > 0 ? remaining[0] : null);
       }
-    } catch (error) {
-      console.error("Failed to load conversation:", error);
-    }
-    return null;
-  };
-
-  const updateConversationTitle = async (conversationId, newTitle) => {
-    try {
-      const db = await openDB();
-      const conversation = await db.get("conversations", conversationId);
-
-      if (conversation) {
-        conversation.title = newTitle;
-        conversation.updatedAt = new Date().toISOString();
-
-        await db.put("conversations", conversation);
-        setConversations((prev) =>
-          prev.map((conv) => (conv.id === conversationId ? conversation : conv)),
-        );
-      }
-    } catch (error) {
-      console.error("Failed to update conversation title:", error);
+    } catch (err) {
+      console.error("Failed to delete conversation:", err);
+      setError("Failed to delete conversation: " + err.message);
+      throw err;
     }
   };
 
-  const addMessage = async (conversationId, message) => {
-    try {
-      const db = await openDB();
-      const conversation = await db.get("conversations", conversationId);
-
-      if (conversation) {
-        conversation.messages.push(message);
-        conversation.updatedAt = new Date().toISOString();
-
-        await db.put("conversations", conversation);
-
-        setConversations((prev) =>
-          prev.map((conv) => (conv.id === conversationId ? conversation : conv)),
-        );
-
-        return conversation;
-      }
-    } catch (error) {
-      console.error("Failed to add message:", error);
-    }
-    return null;
-  };
-
-  const deleteConversation = async (conversationId) => {
-    try {
-      const db = await openDB();
-      await db.delete("conversations", conversationId);
-
-      setConversations((prev) => prev.filter((conv) => conv.id !== conversationId));
-
-      if (activeConversationId === conversationId) {
-        const remainingConversations = conversations.filter((conv) => conv.id !== conversationId);
-        if (remainingConversations.length > 0) {
-          setActiveConversationId(remainingConversations[0].id);
-        } else {
-          setActiveConversationId(null);
-        }
-      }
-    } catch (error) {
-      console.error("Failed to delete conversation:", error);
-    }
-  };
-
-  const getActiveConversation = () => {
-    return conversations.find((conv) => conv.id === activeConversationId) || null;
-  };
-
-  const getConversationById = (id) => {
-    return conversations.find((conv) => conv.id === id) || null;
-  };
-
-  const exportConversation = (conversationId) => {
-    const conversation = getConversationById(conversationId);
-    if (!conversation) return null;
-
-    const exportData = {
-      ...conversation,
-      exportDate: new Date().toISOString(),
-      exportFormat: "ollama-chat-export",
+  // Update conversation
+  const updateConversation = async (updatedConversation) => {
+    const conversation = {
+      ...updatedConversation,
+      updatedAt: new Date(),
     };
 
-    const dataStr = JSON.stringify(exportData, null, 2);
-    const dataUri = "data:application/json;charset=utf-8," + encodeURIComponent(dataStr);
-
-    const exportFileDefaultName = `conversation-${conversationId}.json`;
-
-    const linkElement = document.createElement("a");
-    linkElement.setAttribute("href", dataUri);
-    linkElement.setAttribute("download", exportFileDefaultName);
-    linkElement.click();
-  };
-
-  const importConversation = async (file) => {
     try {
-      const reader = new FileReader();
-      reader.onload = async (event) => {
-        const conversation = JSON.parse(event.target.result);
-
-        // Validate imported conversation
-        if (!conversation.id || !conversation.messages) {
-          throw new Error("Invalid conversation format");
-        }
-
-        const db = await openDB();
-        await db.add("conversations", conversation);
-
-        setConversations((prev) => [conversation, ...prev]);
-
-        if (!activeConversationId) {
-          setActiveConversationId(conversation.id);
-        }
-      };
-      reader.readAsText(file);
-    } catch (error) {
-      console.error("Failed to import conversation:", error);
-      throw error;
+      await saveConversation(conversation);
+      setCurrentConversation(conversation);
+      return conversation;
+    } catch (err) {
+      setError("Failed to update conversation: " + err.message);
+      throw err;
     }
   };
+
+  // Auto-save functionality
+  useEffect(() => {
+    if (currentConversation && ollamaConnected) {
+      const timer = setTimeout(() => {
+        if (currentConversation.messages.length > 0) {
+          saveConversation(currentConversation);
+        }
+      }, 1000);
+
+      return () => clearTimeout(timer);
+    }
+  }, [currentConversation, ollamaConnected]);
 
   const value = {
     conversations,
-    activeConversationId,
-    setActiveConversationId,
-    createNewConversation,
-    loadConversation,
-    updateConversationTitle,
-    addMessage,
+    setConversations,
+    currentConversation,
+    setCurrentConversation,
+    createConversation,
     deleteConversation,
-    getActiveConversation,
-    getConversationById,
-    exportConversation,
-    importConversation,
-    isSaving,
-    setIsSaving,
+    updateConversation,
+    isLoading,
+    error,
+    saveConversation,
   };
 
   return <ConversationContext.Provider value={value}>{children}</ConversationContext.Provider>;

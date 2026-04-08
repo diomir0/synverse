@@ -8,21 +8,42 @@ import {
   Box,
   Button,
   IconButton,
+  useColorScheme,
 } from "@mui/material";
 import { Refresh as RefreshIcon, Settings as SettingsIcon } from "@mui/icons-material";
+import { useOllama } from "../contexts/OllamaContext";
+import { useSettings } from "../contexts/SettingsContext";
+import { useConversation } from "../contexts/ConversationContext";
 
-const Header = ({ currentModel, models, onModelChange, onNewConversation }) => {
+const Header = () => {
+  const { models } = useOllama();
+  const { currentModel, setCurrentModel } = useSettings();
+  const { conversations, setConversations } = useConversation();
+  const handleModelChange = (newValue) => {
+    setCurrentModel(newValue);
+  };
+
+  const handleNewConversation = () => {
+    // Create a new conversation
+    const newConversation = {
+      id: Date.now(),
+      title: `Conversation ${conversations.length + 1}`,
+      messages: [],
+    };
+    setConversations([newConversation, ...conversations]);
+  };
+
   return (
     <AppBar position="static">
       <Toolbar>
         <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
-          Ollama Chat
+          Synverse
         </Typography>
 
         <Box sx={{ display: "flex", alignItems: "center", mr: 2 }}>
           <Select
-            value={currentModel}
-            onChange={(e) => onModelChange(e.target.value)}
+            value={currentModel || ""}
+            onChange={(e) => handleModelChange(e.target.value)}
             size="small"
             sx={{ mr: 2, minWidth: 150 }}
           >
@@ -33,7 +54,7 @@ const Header = ({ currentModel, models, onModelChange, onNewConversation }) => {
             ))}
           </Select>
 
-          <IconButton color="inherit" onClick={onNewConversation} size="small">
+          <IconButton color="inherit" onClick={handleNewConversation} size="small">
             <RefreshIcon />
           </IconButton>
         </Box>

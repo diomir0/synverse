@@ -1,9 +1,7 @@
-import React, { createContext, useContext, useState, useEffect } from "react";
-import { useOllama } from "./OllamaContext";
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
 
 const ConversationContext = createContext();
 
-// Database helper class
 class ConversationDB {
   static dbName = "ChatConversations";
   static storeName = "conversations";
@@ -86,37 +84,70 @@ class ConversationDB {
       throw error;
     }
   }
+
+  static async clearAll() {
+    try {
+      const db = await this.init();
+      return new Promise((resolve, reject) => {
+        const transaction = db.transaction([this.storeName], "readwrite");
+        const store = transaction.objectStore(this.storeName);
+        const request = store.clear();
+
+        request.onsuccess = () => resolve();
+        request.onerror = () => reject(request.error);
+      });
+    } catch (error) {
+      console.error("Error clearing conversations:", error);
+      throw error;
+    }
+  }
 }
 
 export const ConversationProvider = ({ children }) => {
-  const { ollamaConnected } = useOllama();
   const [conversations, setConversations] = useState([]);
-  const [currentConversation, setCurrentConversation] = useState(null);
+  const [activeConversation, setActiveConversation] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // Load conversations from IndexedDB on mount
-  useEffect(() => {
-    const loadConversations = async () => {
-      if (!ollamaConnected) return;
+  // Track whether we've already loaded from DB (prevents duplicate loads in StrictMode)
+  const hasLoadedRef = useRef(false);
 
+  // Load conversations from IndexedDB on mount.
+  // Also purges empty conversations that were created by previous auto-creation bugs.
+  useEffect(() => {
+    if (hasLoadedRef.current) return;
+    hasLoadedRef.current = true;
+
+    const loadConversations = async () => {
       try {
         setIsLoading(true);
         setError(null);
-        const loadedConversations = await ConversationDB.getAll();
-        setConversations(loadedConversations || []);
+        const loaded = await ConversationDB.getAll();
+        const all = loaded || [];
 
-        // Set the most recent conversation as active if none is set
-        if (loadedConversations && loadedConversations.length > 0 && !currentConversation) {
-          const latest = loadedConversations.reduce((latest, conv) =>
-            !latest || new Date(conv.createdAt) > new Date(latest.createdAt) ? conv : latest,
+        // Purge empty conversations (no messages) — they're noise from auto-creation
+        const nonEmpty = all.filter((c) => c.messages && c.messages.length > 0);
+
+        if (nonEmpty.length < all.length) {
+          console.log(`Purging ${all.length - nonEmpty.length} empty conversation(s)`);
+          // Rewrite the store with only the non-empty ones
+          await ConversationDB.clearAll();
+          for (const conv of nonEmpty) {
+            await ConversationDB.save(conv);
+          }
+        }
+
+        setConversations(nonEmpty);
+
+        if (nonEmpty.length > 0) {
+          const latest = nonEmpty.reduce((a, b) =>
+            new Date(a.updatedAt || a.createdAt) > new Date(b.updatedAt || b.createdAt) ? a : b,
           );
-          setCurrentConversation(latest);
+          setActiveConversation(latest);
         }
       } catch (err) {
         console.error("Failed to load conversations:", err);
         setError("Failed to load conversations: " + err.message);
-        // Initialize with empty array even if there's an error
         setConversations([]);
       } finally {
         setIsLoading(false);
@@ -124,17 +155,17 @@ export const ConversationProvider = ({ children }) => {
     };
 
     loadConversations();
-  }, [ollamaConnected, currentConversation]);
+  }, []);
 
   // Save conversation to IndexedDB
-  const saveConversation = async (conversation) => {
+  const saveConversation = useCallback(async (conversation) => {
     try {
       await ConversationDB.save(conversation);
       setConversations((prev) => {
-        const existingIndex = prev.findIndex((c) => c.id === conversation.id);
-        if (existingIndex >= 0) {
+        const idx = prev.findIndex((c) => c.id === conversation.id);
+        if (idx >= 0) {
           const updated = [...prev];
-          updated[existingIndex] = conversation;
+          updated[idx] = conversation;
           return updated;
         }
         return [...prev, conversation];
@@ -145,82 +176,89 @@ export const ConversationProvider = ({ children }) => {
       setError("Failed to save conversation: " + err.message);
       throw err;
     }
-  };
+  }, []);
 
-  // Create new conversation
-  const createConversation = async (title = "New Conversation") => {
+  // Create new conversation.
+  // IMPORTANT: does NOT auto-save to IndexedDB — it's only persisted
+  // once the user actually sends a message. This avoids empty stubs.
+  const createConversation = useCallback((title = "New Conversation", model = "") => {
     const newConversation = {
       id: Date.now().toString(),
-      title: title,
+      title,
       messages: [],
-      createdAt: new Date(),
-      updatedAt: new Date(),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
       tags: [],
-      model: "llama3",
+      model,
     };
 
-    try {
-      await saveConversation(newConversation);
-      setCurrentConversation(newConversation);
-      return newConversation;
-    } catch (err) {
-      setError("Failed to create conversation: " + err.message);
-      throw err;
-    }
-  };
+    setConversations((prev) => [newConversation, ...prev]);
+    setActiveConversation(newConversation);
+    // Deliberately do NOT saveConversation here — wait for the first message
+    return newConversation;
+  }, []);
 
   // Delete conversation
-  const deleteConversation = async (id) => {
+  const deleteConversation = useCallback(async (id) => {
     try {
       await ConversationDB.delete(id);
-      setConversations((prev) => prev.filter((c) => c.id !== id));
-
-      if (currentConversation?.id === id) {
-        const remaining = conversations.filter((c) => c.id !== id);
-        setCurrentConversation(remaining.length > 0 ? remaining[0] : null);
-      }
+      setConversations((prev) => {
+        const remaining = prev.filter((c) => c.id !== id);
+        setActiveConversation((prevActive) => {
+          if (prevActive?.id === id) {
+            return remaining.length > 0
+              ? remaining.reduce((a, b) =>
+                  new Date(a.updatedAt || a.createdAt) > new Date(b.updatedAt || b.createdAt)
+                    ? a
+                    : b,
+                )
+              : null;
+          }
+          return prevActive;
+        });
+        return remaining;
+      });
     } catch (err) {
       console.error("Failed to delete conversation:", err);
       setError("Failed to delete conversation: " + err.message);
       throw err;
     }
-  };
+  }, []);
 
   // Update conversation
-  const updateConversation = async (updatedConversation) => {
-    const conversation = {
-      ...updatedConversation,
-      updatedAt: new Date(),
-    };
+  const updateConversation = useCallback(
+    async (updatedConversation) => {
+      const conversation = {
+        ...updatedConversation,
+        updatedAt: new Date().toISOString(),
+      };
+      try {
+        await saveConversation(conversation);
+        setActiveConversation(conversation);
+        return conversation;
+      } catch (err) {
+        setError("Failed to update conversation: " + err.message);
+        throw err;
+      }
+    },
+    [saveConversation],
+  );
 
-    try {
-      await saveConversation(conversation);
-      setCurrentConversation(conversation);
-      return conversation;
-    } catch (err) {
-      setError("Failed to update conversation: " + err.message);
-      throw err;
-    }
-  };
-
-  // Auto-save functionality
+  // Auto-save active conversation (only when it has messages)
   useEffect(() => {
-    if (currentConversation && ollamaConnected) {
+    if (activeConversation && activeConversation.messages?.length > 0) {
       const timer = setTimeout(() => {
-        if (currentConversation.messages.length > 0) {
-          saveConversation(currentConversation);
-        }
-      }, 1000);
-
+        saveConversation(activeConversation);
+      }, 2000);
       return () => clearTimeout(timer);
     }
-  }, [currentConversation, ollamaConnected]);
+  }, [activeConversation, saveConversation]);
 
   const value = {
     conversations,
     setConversations,
-    currentConversation,
-    setCurrentConversation,
+    activeConversation,
+    setActiveConversation,
     createConversation,
     deleteConversation,
     updateConversation,
@@ -239,3 +277,5 @@ export const useConversation = () => {
   }
   return context;
 };
+
+export default ConversationContext;

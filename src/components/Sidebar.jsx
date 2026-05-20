@@ -1,15 +1,20 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   Box,
   List,
-  ListItem,
+  ListItemButton,
   ListItemText,
   ListItemIcon,
   IconButton,
   Divider,
   Typography,
   Button,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
 } from "@mui/material";
+import { useNavigate, useLocation } from "react-router-dom";
 import {
   Chat as ChatIcon,
   Add as AddIcon,
@@ -17,120 +22,202 @@ import {
   Settings as SettingsIcon,
 } from "@mui/icons-material";
 import { useConversation } from "../contexts/ConversationContext";
+import { useSettings } from "../contexts/SettingsContext";
 
-const Sidebar = () => {
-  const { conversations, currentConversation, setConversations, setCurrentConversation } =
+const Sidebar = ({ onNewConversation }) => {
+  const { conversations, activeConversation, setActiveConversation, deleteConversation } =
     useConversation();
+  const { currentModel } = useSettings();
+
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [conversationToDelete, setConversationToDelete] = useState(null);
+
+  const isOnSettings = location.pathname === "/settings";
 
   const handleConversationClick = (conversation) => {
-    setCurrentConversation(conversation);
+    setActiveConversation(conversation);
+    // If we're on the settings page, navigate back to chat
+    if (isOnSettings) {
+      navigate("/");
+    }
   };
 
   const handleDeleteClick = (e, conversationId) => {
     e.stopPropagation();
-    // Filter out the deleted conversation
-    const updatedConversations = conversations.filter((conv) => conv.id !== conversationId);
-    setConversations(updatedConversations);
+    setConversationToDelete(conversationId);
+    setDeleteDialogOpen(true);
+  };
 
-    // If we deleted the active conversation, switch to the first one or null
-    if (currentConversation?.id === conversationId) {
-      if (updatedConversations.length > 0) {
-        setCurrentConversation(updatedConversations[0]);
-      } else {
-        setCurrentConversation(null);
-      }
+  const confirmDelete = () => {
+    if (conversationToDelete) {
+      deleteConversation(conversationToDelete);
     }
+    setDeleteDialogOpen(false);
+    setConversationToDelete(null);
   };
 
   const handleCreateNew = () => {
-    const newConversation = {
-      id: Date.now(), // Simple ID generation
-      title: "New Conversation",
-      messages: [],
-      createdAt: new Date(),
-    };
+    onNewConversation();
+    // If we're on the settings page, navigate back to chat
+    if (isOnSettings) {
+      navigate("/");
+    }
+  };
 
-    const updatedConversations = [newConversation, ...conversations];
-    setConversations(updatedConversations);
-    setCurrentConversation(newConversation);
+  // Format the conversation timestamp
+  const formatTime = (timestamp) => {
+    try {
+      const date = new Date(timestamp);
+      const now = new Date();
+      const diffMs = now - date;
+      const diffMins = Math.floor(diffMs / 60000);
+      const diffHours = Math.floor(diffMs / 3600000);
+      const diffDays = Math.floor(diffMs / 86400000);
+
+      if (diffMins < 1) return "Just now";
+      if (diffMins < 60) return `${diffMins}m ago`;
+      if (diffHours < 24) return `${diffHours}h ago`;
+      if (diffDays < 7) return `${diffDays}d ago`;
+      return date.toLocaleDateString();
+    } catch {
+      return "";
+    }
   };
 
   return (
     <Box
       sx={{
-        width: 250,
-        height: "100vh",
+        width: 260,
+        minWidth: 260,
+        height: "100%",
         bgcolor: "background.paper",
-        borderRight: 1,
-        borderColor: "divider",
         display: "flex",
         flexDirection: "column",
       }}
     >
-      <Box sx={{ p: 2, borderBottom: 1, borderColor: "divider" }}>
-        <Button fullWidth variant="contained" startIcon={<AddIcon />} onClick={handleCreateNew}>
+      {/* New Chat Button */}
+      <Box sx={{ p: 1.5 }}>
+        <Button
+          fullWidth
+          variant="outlined"
+          startIcon={<AddIcon />}
+          onClick={handleCreateNew}
+          size="small"
+        >
           New Chat
         </Button>
       </Box>
 
-      <Box sx={{ p: 1, flexGrow: 1, overflow: "auto" }}>
-        <List>
-          {conversations.map((conversation) => (
-            <ListItem
-              key={conversation.id}
-              button
-              selected={conversation.id === currentConversation?.id}
-              onClick={() => handleConversationClick(conversation)}
-              sx={{
-                mb: 1,
-                borderRadius: 1,
-                bgcolor:
-                  conversation.id === currentConversation?.id ? "action.selected" : "transparent",
-              }}
-            >
-              <ListItemIcon>
-                <ChatIcon />
-              </ListItemIcon>
-              <ListItemText
-                primary={conversation.title || "Untitled"}
-                secondary={
-                  conversation.messages.length > 0
-                    ? conversation.messages[conversation.messages.length - 1].content.substring(
-                        0,
-                        30,
-                      ) + "..."
-                    : "New conversation"
-                }
-              />
-              <IconButton
-                edge="end"
-                aria-label="delete"
-                onClick={(e) => handleDeleteClick(e, conversation.id)}
-                size="small"
-              >
-                <DeleteIcon fontSize="small" />
-              </IconButton>
-            </ListItem>
-          ))}
+      <Divider />
 
-          {conversations.length === 0 && (
-            <Box sx={{ p: 2, textAlign: "center", color: "text.secondary" }}>
-              <Typography variant="body2">No conversations yet</Typography>
-            </Box>
-          )}
-        </List>
+      {/* Conversation List */}
+      <Box sx={{ flex: 1, overflow: "auto", p: 1 }}>
+        {conversations.length > 0 ? (
+          <List dense>
+            {conversations.map((conversation) => (
+              <ListItemButton
+                key={conversation.id}
+                selected={conversation.id === activeConversation?.id && !isOnSettings}
+                onClick={() => handleConversationClick(conversation)}
+                sx={{
+                  borderRadius: 1,
+                  mb: 0.5,
+                  "&.Mui-selected": {
+                    bgcolor: "action.selected",
+                    "&:hover": {
+                      bgcolor: "action.selected",
+                    },
+                  },
+                }}
+              >
+                <ListItemIcon sx={{ minWidth: 36 }}>
+                  <ChatIcon
+                    fontSize="small"
+                    color={
+                      conversation.id === activeConversation?.id && !isOnSettings
+                        ? "primary"
+                        : "action"
+                    }
+                  />
+                </ListItemIcon>
+                <ListItemText
+                  primary={conversation.title || "Untitled"}
+                  secondary={
+                    <Typography variant="caption" color="text.secondary">
+                      {conversation.messages?.length > 0
+                        ? `${conversation.messages.length} msg${conversation.messages.length > 1 ? "s" : ""} · ${formatTime(conversation.updatedAt)}`
+                        : "Empty"}
+                    </Typography>
+                  }
+                  primaryTypographyProps={{
+                    variant: "body2",
+                    noWrap: true,
+                    fontWeight:
+                      conversation.id === activeConversation?.id && !isOnSettings ? 600 : 400,
+                  }}
+                />
+                <IconButton
+                  edge="end"
+                  aria-label="delete"
+                  onClick={(e) => handleDeleteClick(e, conversation.id)}
+                  size="small"
+                  sx={{ opacity: 0.5, "&:hover": { opacity: 1 } }}
+                >
+                  <DeleteIcon fontSize="small" />
+                </IconButton>
+              </ListItemButton>
+            ))}
+          </List>
+        ) : (
+          <Box sx={{ p: 2, textAlign: "center" }}>
+            <ChatIcon sx={{ fontSize: 40, color: "text.disabled", mb: 1 }} />
+            <Typography variant="body2" color="text.secondary">
+              No conversations yet
+            </Typography>
+            <Typography variant="caption" color="text.disabled">
+              Start a new chat to begin
+            </Typography>
+          </Box>
+        )}
       </Box>
 
       <Divider />
 
+      {/* Settings Link */}
       <Box sx={{ p: 1 }}>
-        <ListItem>
-          <ListItemIcon>
-            <SettingsIcon />
+        <ListItemButton
+          selected={isOnSettings}
+          onClick={() => navigate(isOnSettings ? "/" : "/settings")}
+          sx={{ borderRadius: 1 }}
+        >
+          <ListItemIcon sx={{ minWidth: 36 }}>
+            <SettingsIcon fontSize="small" />
           </ListItemIcon>
-          <ListItemText primary="Settings" />
-        </ListItem>
+          <ListItemText
+            primary={isOnSettings ? "Back to Chat" : "Settings"}
+            primaryTypographyProps={{ variant: "body2" }}
+          />
+        </ListItemButton>
       </Box>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)} maxWidth="xs">
+        <DialogTitle>Delete Conversation?</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2">
+            This will permanently delete this conversation and all its messages. This action cannot
+            be undone.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
+          <Button onClick={confirmDelete} color="error" variant="contained">
+            Delete
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };

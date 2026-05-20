@@ -4,7 +4,6 @@ import { ThemeProvider, createTheme } from "@mui/material/styles";
 import CssBaseline from "@mui/material/CssBaseline";
 import ChatPage from "./pages/ChatPage";
 import SettingsPage from "./pages/SettingsPage";
-import Sidebar from "./components/Sidebar";
 import Header from "./components/Header";
 import { ConversationProvider } from "./contexts/ConversationContext";
 import { OllamaProvider } from "./contexts/OllamaContext";
@@ -31,9 +30,16 @@ const App = () => {
       secondary: {
         main: "#dc004e",
       },
+      background: {
+        default: darkMode ? "#121212" : "#f5f5f5",
+        paper: darkMode ? "#1e1e1e" : "#ffffff",
+      },
     },
     typography: {
       fontFamily: "Roboto, Arial, sans-serif",
+    },
+    shape: {
+      borderRadius: 8,
     },
   });
 
@@ -46,7 +52,6 @@ const App = () => {
             <div className="app-container">
               <Header setDarkMode={setDarkMode} darkMode={darkMode} />
               <div className="main-content">
-                <Sidebar />
                 <Routes>
                   <Route path="/" element={<ChatPage />} />
                   <Route path="/settings" element={<SettingsPage />} />

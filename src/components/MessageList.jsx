@@ -142,7 +142,8 @@ const BotAvatar = styled(AvatarIcon)(({ theme }) => ({
   color: theme.palette.mode === "dark" ? theme.palette.grey[400] : theme.palette.grey[600],
 }));
 
-// Wrapper for a single message that adds a hover-reveal edit button
+// Wrapper for a single message that adds a hover-reveal edit button.
+// Padding is added on the button side so the hover area includes the button.
 const EditableMessageRow = ({ message, isUser, isStreaming, isEditable, onEdit, children }) => {
   const [hovered, setHovered] = useState(false);
 
@@ -151,10 +152,15 @@ const EditableMessageRow = ({ message, isUser, isStreaming, isEditable, onEdit, 
       $isuser={isUser}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      sx={{ position: "relative" }}
+      sx={{
+        position: "relative",
+        // Add padding on the edit-button side so the hover area
+        // extends to cover the button (which sits just outside).
+        ...(isUser ? { paddingRight: 2 } : { paddingLeft: 2 }),
+      }}
     >
       {children}
-      {isEditable && hovered && (
+      {isEditable && (
         <Tooltip title="Edit message">
           <IconButton
             size="small"
@@ -162,11 +168,13 @@ const EditableMessageRow = ({ message, isUser, isStreaming, isEditable, onEdit, 
             sx={{
               position: "absolute",
               top: 0,
-              left: isUser ? "auto" : -36,
-              right: isUser ? -36 : "auto",
+              // Place the button in the padded area (still inside the hover zone)
+              left: isUser ? "auto" : 0,
+              right: isUser ? 0 : "auto",
               bgcolor: "background.paper",
               boxShadow: 1,
               "&:hover": { bgcolor: "action.hover" },
+              opacity: hovered ? 1 : 0,
               transition: "opacity 0.15s",
             }}
           >

@@ -5,20 +5,11 @@ import { useSettings } from "../contexts/SettingsContext";
 import Sidebar from "../components/Sidebar";
 import MessageList from "../components/MessageList";
 import MessageInput from "../components/MessageInput";
-import {
-  Box,
-  CircularProgress,
-  Alert,
-  Button,
-  Typography,
-  IconButton,
-  Tooltip,
-} from "@mui/material";
+import { Box, CircularProgress, Alert, Button, Typography } from "@mui/material";
 import {
   Cloud as CloudIcon,
   CloudOff as CloudOffIcon,
   Refresh as RefreshIcon,
-  StopCircle as StopIcon,
 } from "@mui/icons-material";
 
 const ChatPage = () => {
@@ -144,24 +135,28 @@ const ChatPage = () => {
     stopGeneration();
   }, [stopGeneration]);
 
-  // ── Edit last unanswered user message ─────────────────────────────
-  // The last user message that hasn't received an assistant reply yet
-  // is the last message in the array when it's a user message and
-  // the assistant hasn't responded.
+  // ── Edit last user message ────────────────────────────────────────
+  // The last user message is always editable (even after a cancelled
+  // generation that left a partial assistant reply). Editing removes
+  // that user message and all subsequent messages.
   const getEditableMessageId = useCallback(() => {
     if (!activeConversation?.messages?.length) return null;
     if (isLoading) return null; // don't allow edit while streaming
     const msgs = activeConversation.messages;
-    const last = msgs[msgs.length - 1];
-    if (last.role === "user") return last.id;
+    // Walk backwards to find the last user message
+    for (let i = msgs.length - 1; i >= 0; i--) {
+      if (msgs[i].role === "user") return msgs[i].id;
+    }
     return null;
   }, [activeConversation, isLoading]);
 
   const handleEditMessage = useCallback(
     (message) => {
       if (!activeConversation) return;
-      // Remove the message from the conversation
-      const updatedMessages = activeConversation.messages.filter((m) => m.id !== message.id);
+      // Remove the edited message and all messages after it
+      const msgIndex = activeConversation.messages.findIndex((m) => m.id === message.id);
+      if (msgIndex === -1) return;
+      const updatedMessages = activeConversation.messages.slice(0, msgIndex);
       const updatedConversation = {
         ...activeConversation,
         messages: updatedMessages,
@@ -361,30 +356,6 @@ const ChatPage = () => {
             {/* Stop button + Input — same centered column as messages */}
             <Box sx={{ display: "flex", justifyContent: "center" }}>
               <Box sx={{ width: "100%", maxWidth: 768, px: 3, pb: 3 }}>
-                {isLoading && (
-                  <Box sx={{ display: "flex", justifyContent: "center", mb: 1 }}>
-                    <Tooltip title="Stop generation">
-                      <IconButton
-                        onClick={handleStopGeneration}
-                        size="small"
-                        sx={{
-                          borderRadius: "50%",
-                          border: "2px solid",
-                          borderColor: "text.secondary",
-                          p: 0.5,
-                          color: "text.secondary",
-                          "&:hover": {
-                            borderColor: "text.primary",
-                            color: "text.primary",
-                            bgcolor: "action.hover",
-                          },
-                        }}
-                      >
-                        <StopIcon sx={{ fontSize: 20 }} />
-                      </IconButton>
-                    </Tooltip>
-                  </Box>
-                )}
                 <MessageInput
                   onSendMessage={handleSendMessage}
                   isLoading={isLoading}
@@ -393,6 +364,7 @@ const ChatPage = () => {
                   onAttachmentsChange={setPendingAttachments}
                   prefilledMessage={prefilledMessage}
                   onPrefillConsumed={() => setPrefilledMessage("")}
+                  onStopGeneration={handleStopGeneration}
                 />
               </Box>
             </Box>

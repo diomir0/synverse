@@ -7,6 +7,7 @@ import {
   Image as ImageMUIIcon,
   Description as TextIcon,
   PictureAsPdf as PdfIcon,
+  StopCircle as StopIcon,
 } from "@mui/icons-material";
 import { processFile, isSupportedFile, fileSizeLabel } from "../utils/fileUtils";
 
@@ -18,6 +19,7 @@ const MessageInput = ({
   onAttachmentsChange,
   prefilledMessage,
   onPrefillConsumed,
+  onStopGeneration,
 }) => {
   const [message, setMessage] = useState("");
   const inputRef = useRef(null);
@@ -244,11 +246,29 @@ const MessageInput = ({
             },
           }}
           InputProps={{
-            endAdornment: (
+            endAdornment: isLoading ? (
+              <IconButton
+                onClick={(e) => {
+                  e.preventDefault();
+                  onStopGeneration?.();
+                }}
+                size="small"
+                sx={{
+                  bgcolor: "error.main",
+                  color: "error.contrastText",
+                  "&:hover": {
+                    bgcolor: "error.dark",
+                  },
+                  mr: -0.5,
+                }}
+              >
+                <StopIcon fontSize="small" />
+              </IconButton>
+            ) : (
               <IconButton
                 type="submit"
                 color="primary"
-                disabled={isLoading || disabled || !hasContent}
+                disabled={disabled || !hasContent}
                 size="small"
                 sx={{
                   bgcolor: hasContent && !disabled ? "primary.main" : "transparent",

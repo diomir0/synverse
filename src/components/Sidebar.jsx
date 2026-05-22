@@ -24,7 +24,7 @@ import {
 import { useConversation } from "../contexts/ConversationContext";
 import { useSettings } from "../contexts/SettingsContext";
 
-const Sidebar = ({ onNewConversation }) => {
+const Sidebar = ({ onNewConversation, open = true, onToggle }) => {
   const { conversations, activeConversation, setActiveConversation, deleteConversation } =
     useConversation();
   const { currentModel } = useSettings();
@@ -89,12 +89,16 @@ const Sidebar = ({ onNewConversation }) => {
   return (
     <Box
       sx={{
-        width: 260,
-        minWidth: 260,
+        width: open ? 260 : 0,
+        minWidth: open ? 260 : 0,
         height: "100%",
         bgcolor: "background.paper",
         display: "flex",
         flexDirection: "column",
+        overflow: "hidden",
+        transition: "width 200ms ease, min-width 200ms ease",
+        borderRight: open ? "1px solid" : "none",
+        borderColor: "divider",
       }}
     >
       {/* New Chat Button */}

@@ -12,7 +12,7 @@ import {
   Refresh as RefreshIcon,
 } from "@mui/icons-material";
 
-const ChatPage = () => {
+const ChatPage = ({ sidebarOpen, onToggleSidebar }) => {
   const { ollamaStatus, generateResponse, stopGeneration, checkConnection, isCloudMode } =
     useOllama();
   const { currentModel, globalSystemPrompt } = useSettings();
@@ -246,7 +246,11 @@ const ChatPage = () => {
       }}
     >
       {/* Sidebar */}
-      <Sidebar onNewConversation={handleNewConversation} />
+      <Sidebar
+        onNewConversation={handleNewConversation}
+        open={sidebarOpen}
+        onToggle={onToggleSidebar}
+      />
 
       {/*
         Main chat area — the outer box fills the remaining screen.

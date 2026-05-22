@@ -34,7 +34,7 @@ import {
   Link as LinkIcon,
 } from "@mui/icons-material";
 
-const SettingsPage = () => {
+const SettingsPage = ({ sidebarOpen, onToggleSidebar }) => {
   const {
     globalSystemPrompt,
     setGlobalSystemPrompt,
@@ -120,7 +120,7 @@ const SettingsPage = () => {
         bgcolor: "background.default",
       }}
     >
-      <Sidebar onNewConversation={() => {}} />
+      <Sidebar onNewConversation={() => {}} open={sidebarOpen} onToggle={onToggleSidebar} />
       <Box sx={{ flex: 1, overflow: "auto", p: 3 }}>
         <Box sx={{ maxWidth: 900, mx: "auto" }}>
           <Typography variant="h4" gutterBottom>

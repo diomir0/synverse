@@ -1,39 +1,59 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
+import { getItem, setItem } from "../utils/storageAdapter";
 
 const SettingsContext = createContext();
 
 export const SettingsProvider = ({ children }) => {
-  const [globalSystemPrompt, setGlobalSystemPrompt] = useState(() => {
-    return (
-      localStorage.getItem("globalSystemPrompt") ||
-      "You are a helpful AI assistant. Respond clearly and concisely."
-    );
-  });
-  const [defaultModel, setDefaultModel] = useState(() => {
-    return localStorage.getItem("defaultModel") || "";
-  });
-  const [autoSave, setAutoSave] = useState(() => {
-    return JSON.parse(localStorage.getItem("autoSave")) || true;
-  });
-  const [currentModel, setCurrentModel] = useState(() => {
-    return localStorage.getItem("currentModel") || "";
-  });
+  const [globalSystemPrompt, setGlobalSystemPrompt] = useState(
+    "You are a helpful AI assistant. Respond clearly and concisely.",
+  );
+  const [defaultModel, setDefaultModel] = useState("");
+  const [autoSave, setAutoSave] = useState(true);
+  const [currentModel, setCurrentModel] = useState("");
+
+  // Loading flag — prevents writing defaults back to storage
+  // before the real values have been read.
+  const [loaded, setLoaded] = useState(false);
+
+  // Load persisted settings on mount
+  useEffect(() => {
+    (async () => {
+      const [storedPrompt, storedModel, storedAutoSave, storedCurrentModel] = await Promise.all([
+        getItem("globalSystemPrompt"),
+        getItem("defaultModel"),
+        getItem("autoSave"),
+        getItem("currentModel"),
+      ]);
+
+      if (storedPrompt !== null) setGlobalSystemPrompt(storedPrompt);
+      if (storedModel !== null) setDefaultModel(storedModel);
+      if (storedAutoSave !== null) setAutoSave(JSON.parse(storedAutoSave));
+      if (storedCurrentModel !== null) setCurrentModel(storedCurrentModel);
+
+      setLoaded(true);
+    })();
+  }, []);
+
+  // Persist changes (skip until initial load is complete)
+  useEffect(() => {
+    if (!loaded) return;
+    setItem("globalSystemPrompt", globalSystemPrompt);
+  }, [globalSystemPrompt, loaded]);
 
   useEffect(() => {
-    localStorage.setItem("globalSystemPrompt", globalSystemPrompt);
-  }, [globalSystemPrompt]);
+    if (!loaded) return;
+    setItem("defaultModel", defaultModel);
+  }, [defaultModel, loaded]);
 
   useEffect(() => {
-    localStorage.setItem("defaultModel", defaultModel);
-  }, [defaultModel]);
+    if (!loaded) return;
+    setItem("autoSave", JSON.stringify(autoSave));
+  }, [autoSave, loaded]);
 
   useEffect(() => {
-    localStorage.setItem("autoSave", JSON.stringify(autoSave));
-  }, [autoSave]);
-
-  useEffect(() => {
-    localStorage.setItem("currentModel", currentModel);
-  }, [currentModel]);
+    if (!loaded) return;
+    setItem("currentModel", currentModel);
+  }, [currentModel, loaded]);
 
   const value = {
     globalSystemPrompt,

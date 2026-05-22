@@ -1,1 +1,8 @@
 node_modules/
+
+# Vite build output
+dist/
+
+# Capacitor — Android build artifacts
+android/
+*.jks

@@ -1,5 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
 import { collectImages, formatTextAttachments } from "../utils/fileUtils";
+import { getItem, setItem } from "../utils/storageAdapter";
+import { getDefaultOllamaUrl, shouldUseProxyByDefault } from "../utils/platform";
+import { httpRequest, streamingChatRequest, cancelNativeRequest } from "../utils/networkAdapter";
 
 const OllamaContext = createContext();
 
@@ -156,19 +159,32 @@ const CLOUD_MODELS = [
 export const OllamaProvider = ({ children }) => {
   const [ollamaStatus, setOllamaStatus] = useState("unknown");
   const [models, setModels] = useState([]);
-  const [ollamaUrl, setOllamaUrlState] = useState(() => {
-    return localStorage.getItem("ollamaUrl") || "http://localhost:11434";
-  });
-  const [apiKey, setApiKeyState] = useState(() => {
-    return localStorage.getItem("ollamaApiKey") || "";
-  });
-  const [useProxy, setUseProxyState] = useState(() => {
-    const stored = localStorage.getItem("ollamaUseProxy");
-    if (stored !== null) return JSON.parse(stored);
-    // Default to true — the dev proxy strips the browser Origin header
-    // that causes 403 Forbidden on newer Ollama versions.
-    return true;
-  });
+
+  // Default values — will be overwritten by persisted settings on mount
+  const [ollamaUrl, setOllamaUrlState] = useState(getDefaultOllamaUrl());
+  const [apiKey, setApiKeyState] = useState("");
+  const [useProxy, setUseProxyState] = useState(shouldUseProxyByDefault());
+
+  // Loading flag — prevents writing defaults back to storage
+  // before persisted values have been read.
+  const [loaded, setLoaded] = useState(false);
+
+  // Load persisted settings on mount
+  useEffect(() => {
+    (async () => {
+      const [storedUrl, storedKey, storedProxy] = await Promise.all([
+        getItem("ollamaUrl"),
+        getItem("ollamaApiKey"),
+        getItem("ollamaUseProxy"),
+      ]);
+
+      if (storedUrl !== null) setOllamaUrlState(storedUrl);
+      if (storedKey !== null) setApiKeyState(storedKey);
+      if (storedProxy !== null) setUseProxyState(JSON.parse(storedProxy));
+
+      setLoaded(true);
+    })();
+  }, []);
 
   // AbortController ref for cancelling in-progress generation requests
   const abortControllerRef = useRef(null);
@@ -196,21 +212,21 @@ export const OllamaProvider = ({ children }) => {
   // Determine if we're in cloud mode based on URL
   const isCloudMode = ollamaUrl.includes("ollama.com");
 
-  // Save URL to localStorage
+  // Save URL to storage
   const setOllamaUrl = useCallback((url) => {
-    localStorage.setItem("ollamaUrl", url);
+    setItem("ollamaUrl", url);
     setOllamaUrlState(url);
   }, []);
 
-  // Save API key to localStorage
+  // Save API key to storage
   const setApiKey = useCallback((key) => {
-    localStorage.setItem("ollamaApiKey", key);
+    setItem("ollamaApiKey", key);
     setApiKeyState(key);
   }, []);
 
   // Save proxy setting
   const setUseProxy = useCallback((val) => {
-    localStorage.setItem("ollamaUseProxy", JSON.stringify(val));
+    setItem("ollamaUseProxy", JSON.stringify(val));
     setUseProxyState(val);
   }, []);
 
@@ -253,10 +269,9 @@ export const OllamaProvider = ({ children }) => {
     try {
       setOllamaStatus("connecting");
       const baseUrl = getApiBaseUrl();
-      const response = await fetch(`${baseUrl}/api/tags`, {
+      const response = await httpRequest(`${baseUrl}/api/tags`, {
         method: "GET",
         headers: buildHeaders(),
-        signal: AbortSignal.timeout(10000),
       });
 
       // If a newer attempt has started, discard this result
@@ -283,22 +298,23 @@ export const OllamaProvider = ({ children }) => {
 
   // Debounced auto-connect: re-check when URL, API key, or proxy setting changes.
   // The debounce prevents rapid-fire reconnection while the user types in the URL field.
+  // Skip until persisted settings have been loaded to avoid connecting with defaults.
   useEffect(() => {
+    if (!loaded) return;
     const timer = setTimeout(() => {
       checkConnection();
     }, 800); // 800ms debounce
 
     return () => clearTimeout(timer);
-  }, [ollamaUrl, apiKey, useProxy, checkConnection]); // checkConnection is stable
+  }, [ollamaUrl, apiKey, useProxy, loaded, checkConnection]); // checkConnection is stable
 
   // Fetch models from /api/tags
   const getOllamaModels = useCallback(async () => {
     try {
       const baseUrl = getApiBaseUrl();
-      const response = await fetch(`${baseUrl}/api/tags`, {
+      const response = await httpRequest(`${baseUrl}/api/tags`, {
         method: "GET",
         headers: buildHeaders(),
-        signal: AbortSignal.timeout(10000),
       });
 
       if (response.ok) {
@@ -314,7 +330,9 @@ export const OllamaProvider = ({ children }) => {
     }
   }, [getApiBaseUrl, buildHeaders]); // stable
 
-  // Generate a response using the /api/chat endpoint with streaming
+  // Generate a response using the /api/chat endpoint.
+  // On web: streams tokens live via fetch + ReadableStream.
+  // On native: fetches the complete response via CapacitorHttp (stream:false).
   const generateResponse = useCallback(
     async (messages, model, systemPrompt, onChunk) => {
       abortControllerRef.current = new AbortController();
@@ -345,79 +363,22 @@ export const OllamaProvider = ({ children }) => {
         chatMessages.push(chatMsg);
       }
 
-      let fullResponse = "";
       try {
-        const response = await fetch(`${baseUrl}/api/chat`, {
-          method: "POST",
-          headers: buildHeaders(),
-          body: JSON.stringify({
+        const fullResponse = await streamingChatRequest(
+          `${baseUrl}/api/chat`,
+          buildHeaders(),
+          {
             model: model,
             messages: chatMessages,
-            stream: true,
-          }),
-          signal: abortControllerRef.current.signal,
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          throw new Error(
-            `Ollama API error (${response.status}): ${errorText || response.statusText}`,
-          );
-        }
-
-        // Handle NDJSON streaming from Ollama
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = "";
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split("\n");
-          buffer = lines.pop() || ""; // Keep incomplete line in buffer
-
-          for (const line of lines) {
-            const trimmed = line.trim();
-            if (!trimmed) continue;
-
-            try {
-              const json = JSON.parse(trimmed);
-              if (json.message?.content) {
-                fullResponse += json.message.content;
-                if (onChunk) {
-                  onChunk(json.message.content, fullResponse);
-                }
-              }
-              if (json.done) {
-                return fullResponse;
-              }
-            } catch (e) {
-              console.warn("Failed to parse streaming chunk:", trimmed);
-            }
-          }
-        }
-
-        // Process any remaining buffer
-        if (buffer.trim()) {
-          try {
-            const json = JSON.parse(buffer.trim());
-            if (json.message?.content) {
-              fullResponse += json.message.content;
-              if (onChunk) {
-                onChunk(json.message.content, fullResponse);
-              }
-            }
-          } catch (e) {
-            // Ignore
-          }
-        }
+          },
+          onChunk,
+          abortControllerRef.current.signal,
+        );
 
         return fullResponse;
       } catch (error) {
         if (error.name === "AbortError") {
-          return fullResponse;
+          return "";
         }
         console.error("Failed to generate response:", error);
         throw error;
@@ -427,11 +388,15 @@ export const OllamaProvider = ({ children }) => {
   );
 
   // Abort an in-progress generation request
+  // On web: aborts the fetch via AbortController.
+  // On native: rejects the deferred promise in networkAdapter so the
+  //           pending CapacitorHttp request is cancelled from the UI side.
   const stopGeneration = useCallback(() => {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
     }
+    cancelNativeRequest();
   }, []);
 
   // Get all available models: local/pulled + cloud catalog

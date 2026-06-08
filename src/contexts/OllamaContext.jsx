@@ -172,17 +172,28 @@ export const OllamaProvider = ({ children }) => {
   // Load persisted settings on mount
   useEffect(() => {
     (async () => {
-      const [storedUrl, storedKey, storedProxy] = await Promise.all([
-        getItem("ollamaUrl"),
-        getItem("ollamaApiKey"),
-        getItem("ollamaUseProxy"),
-      ]);
+      console.log("[SV] OllamaProvider: loading persisted settings");
+      try {
+        const [storedUrl, storedKey, storedProxy] = await Promise.all([
+          getItem("ollamaUrl"),
+          getItem("ollamaApiKey"),
+          getItem("ollamaUseProxy"),
+        ]);
 
-      if (storedUrl !== null) setOllamaUrlState(storedUrl);
-      if (storedKey !== null) setApiKeyState(storedKey);
-      if (storedProxy !== null) setUseProxyState(JSON.parse(storedProxy));
+        if (storedUrl !== null) setOllamaUrlState(storedUrl);
+        if (storedKey !== null) setApiKeyState(storedKey);
+        if (storedProxy !== null) setUseProxyState(JSON.parse(storedProxy));
 
-      setLoaded(true);
+        console.log("[SV] OllamaProvider: settings loaded", {
+          url: storedUrl ?? "(default)",
+          hasKey: storedKey !== null,
+          proxy: storedProxy ?? "(default)",
+        });
+        setLoaded(true);
+      } catch (err) {
+        console.error("[SV] OllamaProvider: failed to load settings", err);
+        setLoaded(true);
+      }
     })();
   }, []);
 
@@ -269,6 +280,11 @@ export const OllamaProvider = ({ children }) => {
     try {
       setOllamaStatus("connecting");
       const baseUrl = getApiBaseUrl();
+      console.log("[SV] checkConnection: attempting", {
+        baseUrl,
+        useProxy: useProxyRef.current,
+        attemptId,
+      });
       const response = await httpRequest(`${baseUrl}/api/tags`, {
         method: "GET",
         headers: buildHeaders(),
@@ -277,20 +293,28 @@ export const OllamaProvider = ({ children }) => {
       // If a newer attempt has started, discard this result
       if (attemptId !== connectionAttemptId.current) return;
 
+      console.log("[SV] checkConnection: response", {
+        ok: response.ok,
+        status: response.status,
+        attemptId,
+      });
+
       if (response.ok) {
         const data = await response.json();
         // Double-check after async boundary
         if (attemptId !== connectionAttemptId.current) return;
         setModels(data.models || []);
         setOllamaStatus("connected");
+        console.log("[SV] checkConnection: connected, models:", data.models?.length ?? 0);
         return true;
       } else {
+        console.warn("[SV] checkConnection: non-ok response", response.status);
         setOllamaStatus("disconnected");
         return false;
       }
     } catch (error) {
       if (attemptId !== connectionAttemptId.current) return;
-      console.error("Failed to connect to Ollama:", error);
+      console.error("[SV] checkConnection: failed", error);
       setOllamaStatus("disconnected");
       return false;
     }
@@ -301,6 +325,11 @@ export const OllamaProvider = ({ children }) => {
   // Skip until persisted settings have been loaded to avoid connecting with defaults.
   useEffect(() => {
     if (!loaded) return;
+    console.log("[SV] OllamaProvider: auto-connect triggered", {
+      ollamaUrl,
+      useProxy,
+      hasKey: !!apiKey,
+    });
     const timer = setTimeout(() => {
       checkConnection();
     }, 800); // 800ms debounce

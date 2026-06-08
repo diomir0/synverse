@@ -106,7 +106,7 @@ const MessageInput = ({
     >
       {/* Attachment previews */}
       {attachments && attachments.length > 0 && (
-        <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1, mb: 1 }}>
+        <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75, mb: 1 }}>
           {attachments.map((att) => (
             <Chip
               key={att.id}
@@ -135,7 +135,7 @@ const MessageInput = ({
                   >
                     {att.name}
                   </Typography>
-                  <Typography variant="caption" color="text.secondary">
+                  <Typography variant="caption" sx={{ color: "#64748b" }}>
                     {fileSizeLabel(att.size)}
                   </Typography>
                 </Box>
@@ -146,7 +146,13 @@ const MessageInput = ({
               size="small"
               sx={{
                 maxWidth: 260,
+                borderColor: "rgba(255,255,255,0.1)",
+                color: "#94a3b8",
                 "& .MuiChip-label": { px: 0.5 },
+                "& .MuiChip-deleteIcon": {
+                  color: "#64748b",
+                  "&:hover": { color: "#ef4444" },
+                },
               }}
             />
           ))}
@@ -165,10 +171,9 @@ const MessageInput = ({
                   position: "relative",
                   width: 64,
                   height: 64,
-                  borderRadius: 1,
+                  borderRadius: 2,
                   overflow: "hidden",
-                  border: "1px solid",
-                  borderColor: "divider",
+                  border: "1px solid rgba(255,255,255,0.08)",
                 }}
               >
                 <Box
@@ -182,12 +187,12 @@ const MessageInput = ({
                   onClick={() => removeAttachment(att.id)}
                   sx={{
                     position: "absolute",
-                    top: 0,
-                    right: 0,
-                    bgcolor: "rgba(0,0,0,0.5)",
-                    color: "white",
+                    top: 2,
+                    right: 2,
+                    bgcolor: "rgba(0,0,0,0.6)",
+                    color: "#e2e8f0",
                     p: 0.25,
-                    "&:hover": { bgcolor: "rgba(0,0,0,0.7)" },
+                    "&:hover": { bgcolor: "rgba(239,68,68,0.8)" },
                   }}
                 >
                   <CloseIcon sx={{ fontSize: 12 }} />
@@ -205,7 +210,11 @@ const MessageInput = ({
             onClick={handleAttachClick}
             disabled={isLoading || disabled}
             size="small"
-            sx={{ mb: 0.5 }}
+            sx={{
+              mb: 0.5,
+              color: disabled ? "#475569" : "#64748b",
+              "&:hover": { color: "#14b8a6" },
+            }}
           >
             <AttachFileIcon fontSize="small" />
           </IconButton>
@@ -240,9 +249,21 @@ const MessageInput = ({
             flex: 1,
             "& .MuiOutlinedInput-root": {
               borderRadius: 3,
-            },
-            "& .MuiOutlinedInput-notchedOutline": {
-              borderColor: "divider",
+              backgroundColor: "rgba(255,255,255,0.03)",
+              fontSize: "0.9rem",
+              lineHeight: 1.6,
+              "& fieldset": {
+                borderColor: "rgba(255,255,255,0.08)",
+              },
+              "&:hover fieldset": {
+                borderColor: "rgba(255,255,255,0.14)",
+              },
+              "&.Mui-focused fieldset": {
+                borderColor: "rgba(20,184,166,0.5)",
+              },
+              "&.Mui-focused": {
+                backgroundColor: "rgba(255,255,255,0.05)",
+              },
             },
           }}
           InputProps={{
@@ -254,15 +275,18 @@ const MessageInput = ({
                 }}
                 size="small"
                 sx={{
-                  bgcolor: "error.main",
-                  color: "error.contrastText",
+                  bgcolor: "#ef4444",
+                  color: "#fff",
                   "&:hover": {
-                    bgcolor: "error.dark",
+                    bgcolor: "#dc2626",
                   },
                   mr: -0.5,
+                  borderRadius: 2,
+                  width: 28,
+                  height: 28,
                 }}
               >
-                <StopIcon fontSize="small" />
+                <StopIcon sx={{ fontSize: 16 }} />
               </IconButton>
             ) : (
               <IconButton
@@ -271,15 +295,19 @@ const MessageInput = ({
                 disabled={disabled || !hasContent}
                 size="small"
                 sx={{
-                  bgcolor: hasContent && !disabled ? "primary.main" : "transparent",
-                  color: hasContent && !disabled ? "primary.contrastText" : "action.disabled",
+                  bgcolor: hasContent && !disabled ? "#14b8a6" : "transparent",
+                  color: hasContent && !disabled ? "#0b0d13" : "#475569",
                   "&:hover": {
-                    bgcolor: hasContent && !disabled ? "primary.dark" : "transparent",
+                    bgcolor: hasContent && !disabled ? "#0d9488" : "transparent",
                   },
                   mr: -0.5,
+                  borderRadius: 2,
+                  width: 28,
+                  height: 28,
+                  transition: "all 0.2s ease",
                 }}
               >
-                <SendIcon fontSize="small" />
+                <SendIcon sx={{ fontSize: 15 }} />
               </IconButton>
             ),
           }}

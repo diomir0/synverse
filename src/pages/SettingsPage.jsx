@@ -117,18 +117,35 @@ const SettingsPage = ({ sidebarOpen, onToggleSidebar }) => {
         display: "flex",
         height: "100%",
         width: "100%",
-        bgcolor: "background.default",
+        bgcolor: "#0b0d13",
       }}
     >
       <Sidebar onNewConversation={() => {}} open={sidebarOpen} onToggle={onToggleSidebar} />
       <Box sx={{ flex: 1, overflow: "auto", p: 3 }}>
         <Box sx={{ maxWidth: 900, mx: "auto" }}>
-          <Typography variant="h4" gutterBottom>
+          <Typography
+            variant="h4"
+            sx={{
+              color: "#e2e8f0",
+              fontWeight: 600,
+              mb: 3,
+              letterSpacing: "-0.02em",
+            }}
+          >
             Settings
           </Typography>
 
           {saveStatus && (
-            <Alert severity="success" sx={{ mb: 2 }}>
+            <Alert
+              severity="success"
+              sx={{
+                mb: 2,
+                bgcolor: "rgba(34,197,94,0.1)",
+                border: "1px solid rgba(34,197,94,0.25)",
+                color: "#86efac",
+                "& .MuiAlert-icon": { color: "#22c55e" },
+              }}
+            >
               Settings saved successfully!
             </Alert>
           )}
@@ -140,7 +157,7 @@ const SettingsPage = ({ sidebarOpen, onToggleSidebar }) => {
                 <CardHeader
                   title="Ollama Configuration"
                   subheader="Connect to a local Ollama instance or Ollama Cloud"
-                  avatar={<LinkIcon />}
+                  avatar={<LinkIcon sx={{ color: "#14b8a6" }} />}
                 />
                 <CardContent>
                   <TextField
@@ -157,7 +174,7 @@ const SettingsPage = ({ sidebarOpen, onToggleSidebar }) => {
                     InputProps={{
                       startAdornment: isCloudMode ? (
                         <InputAdornment position="start">
-                          <CloudIcon color="primary" fontSize="small" />
+                          <CloudIcon sx={{ color: "#14b8a6", fontSize: 18 }} />
                         </InputAdornment>
                       ) : null,
                     }}
@@ -178,6 +195,7 @@ const SettingsPage = ({ sidebarOpen, onToggleSidebar }) => {
                             onClick={() => setShowApiKey(!showApiKey)}
                             edge="end"
                             size="small"
+                            sx={{ color: "#64748b" }}
                           >
                             {showApiKey ? <VisibilityOff /> : <Visibility />}
                           </IconButton>
@@ -191,6 +209,7 @@ const SettingsPage = ({ sidebarOpen, onToggleSidebar }) => {
                       <Switch checked={useProxy} onChange={(e) => setUseProxy(e.target.checked)} />
                     }
                     label="Use dev server proxy (helps with CORS issues in development)"
+                    sx={{ mt: 1 }}
                   />
 
                   <Box sx={{ display: "flex", alignItems: "center", mt: 2, gap: 2 }}>
@@ -199,6 +218,14 @@ const SettingsPage = ({ sidebarOpen, onToggleSidebar }) => {
                       onClick={checkConnection}
                       disabled={ollamaStatus === "connecting"}
                       startIcon={<RefreshIcon />}
+                      sx={{
+                        borderColor: "rgba(20,184,166,0.4)",
+                        color: "#2dd4bf",
+                        "&:hover": {
+                          borderColor: "#14b8a6",
+                          bgcolor: "rgba(20,184,166,0.08)",
+                        },
+                      }}
                     >
                       Test Connection
                     </Button>
@@ -207,6 +234,14 @@ const SettingsPage = ({ sidebarOpen, onToggleSidebar }) => {
                       onClick={handleRefreshModels}
                       disabled={isRefreshing}
                       startIcon={<RefreshIcon />}
+                      sx={{
+                        borderColor: "rgba(255,255,255,0.12)",
+                        color: "#94a3b8",
+                        "&:hover": {
+                          borderColor: "rgba(255,255,255,0.2)",
+                          bgcolor: "rgba(255,255,255,0.04)",
+                        },
+                      }}
                     >
                       {isRefreshing ? "Refreshing..." : "Refresh Models"}
                     </Button>
@@ -227,14 +262,33 @@ const SettingsPage = ({ sidebarOpen, onToggleSidebar }) => {
                             : "error"
                       }
                       variant="outlined"
+                      sx={{
+                        borderColor:
+                          ollamaStatus === "connected" ? "rgba(20,184,166,0.4)" : undefined,
+                        color: ollamaStatus === "connected" ? "#2dd4bf" : undefined,
+                      }}
                     />
                   </Box>
 
                   {isCloudMode && (
-                    <Alert severity="info" sx={{ mt: 2 }}>
+                    <Alert
+                      severity="info"
+                      sx={{
+                        mt: 2,
+                        bgcolor: "rgba(59,130,246,0.08)",
+                        border: "1px solid rgba(59,130,246,0.2)",
+                        color: "#93c5fd",
+                        "& .MuiAlert-icon": { color: "#60a5fa" },
+                      }}
+                    >
                       You are connecting to Ollama Cloud. Cloud models require an API key. Get yours
                       at{" "}
-                      <a href="https://ollama.com" target="_blank" rel="noopener noreferrer">
+                      <a
+                        href="https://ollama.com"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ color: "#93c5fd" }}
+                      >
                         ollama.com
                       </a>{" "}
                       after creating an account and running <code>ollama signin</code>.
@@ -251,12 +305,16 @@ const SettingsPage = ({ sidebarOpen, onToggleSidebar }) => {
                   <CardHeader
                     title="Available Cloud Models"
                     subheader="Models available on Ollama Cloud. Select a model name to use it in your chats."
-                    avatar={<CloudIcon />}
+                    avatar={<CloudIcon sx={{ color: "#14b8a6" }} />}
                   />
                   <CardContent>
                     {Object.entries(cloudModelsByCategory).map(([category, modelList]) => (
                       <Box key={category} sx={{ mb: 3 }}>
-                        <Typography variant="subtitle1" fontWeight="bold" sx={{ mb: 1 }}>
+                        <Typography
+                          variant="subtitle1"
+                          fontWeight="bold"
+                          sx={{ mb: 1, color: "#e2e8f0" }}
+                        >
                           {categoryLabels[category] || category}
                         </Typography>
                         <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
@@ -268,6 +326,14 @@ const SettingsPage = ({ sidebarOpen, onToggleSidebar }) => {
                                 color={currentModel === model.name ? "primary" : "default"}
                                 onClick={() => setCurrentModel(model.name)}
                                 size="small"
+                                sx={
+                                  currentModel === model.name
+                                    ? {}
+                                    : {
+                                        borderColor: "rgba(255,255,255,0.1)",
+                                        color: "#94a3b8",
+                                      }
+                                }
                               />
                             </Tooltip>
                           ))}
@@ -278,7 +344,7 @@ const SettingsPage = ({ sidebarOpen, onToggleSidebar }) => {
                     <Divider sx={{ my: 2 }} />
 
                     {/* Custom model name input */}
-                    <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
+                    <Typography variant="subtitle2" sx={{ mb: 1, color: "#64748b" }}>
                       Or enter a custom model name:
                     </Typography>
                     <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
@@ -340,7 +406,7 @@ const SettingsPage = ({ sidebarOpen, onToggleSidebar }) => {
                         <MenuItem key={model.name} value={model.name}>
                           <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                             {model.name}
-                            {model.isCloud && <CloudIcon fontSize="small" color="primary" />}
+                            {model.isCloud && <CloudIcon sx={{ fontSize: 14, color: "#14b8a6" }} />}
                           </Box>
                         </MenuItem>
                       ))}
@@ -375,16 +441,28 @@ const SettingsPage = ({ sidebarOpen, onToggleSidebar }) => {
                         <Chip
                           key={model.name}
                           label={model.name}
-                          icon={model.name.includes("-cloud") ? <CloudIcon /> : undefined}
+                          icon={
+                            model.name.includes("-cloud") ? (
+                              <CloudIcon sx={{ fontSize: 16, color: "#14b8a6" }} />
+                            ) : undefined
+                          }
                           variant={currentModel === model.name ? "filled" : "outlined"}
                           color={currentModel === model.name ? "primary" : "default"}
                           onClick={() => setCurrentModel(model.name)}
                           size="small"
+                          sx={
+                            currentModel === model.name
+                              ? {}
+                              : {
+                                  borderColor: "rgba(255,255,255,0.1)",
+                                  color: "#94a3b8",
+                                }
+                          }
                         />
                       ))}
                     </Box>
                   ) : (
-                    <Typography variant="body2" color="text.secondary">
+                    <Typography variant="body2" sx={{ color: "#64748b" }}>
                       {ollamaStatus === "connected"
                         ? "No models found. Pull models with `ollama pull <model-name>`"
                         : "Connect to Ollama to see available models"}
@@ -396,17 +474,25 @@ const SettingsPage = ({ sidebarOpen, onToggleSidebar }) => {
 
             {/* Actions */}
             <Grid item xs={12}>
-              <Card>
-                <CardHeader title="Actions" />
-                <CardContent>
-                  <Button variant="contained" onClick={handleSave} sx={{ mr: 2 }}>
-                    Save Settings
-                  </Button>
-                  <Button variant="outlined" onClick={handleReset} color="warning">
-                    Reset to Defaults
-                  </Button>
-                </CardContent>
-              </Card>
+              <Box sx={{ display: "flex", gap: 2, mb: 4 }}>
+                <Button variant="contained" onClick={handleSave}>
+                  Save Settings
+                </Button>
+                <Button
+                  variant="outlined"
+                  onClick={handleReset}
+                  sx={{
+                    borderColor: "rgba(245,158,11,0.4)",
+                    color: "#fbbf24",
+                    "&:hover": {
+                      borderColor: "#f59e0b",
+                      bgcolor: "rgba(245,158,11,0.08)",
+                    },
+                  }}
+                >
+                  Reset to Defaults
+                </Button>
+              </Box>
             </Grid>
           </Grid>
         </Box>

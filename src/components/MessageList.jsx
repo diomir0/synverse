@@ -3,6 +3,9 @@ import { Box, Typography, IconButton, Tooltip } from "@mui/material";
 import { styled } from "@mui/material/styles";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
+import rehypeKatex from "rehype-katex";
+import "katex/dist/katex.min.css";
 import {
   SmartToy as BotIcon,
   Person as PersonIcon,
@@ -15,7 +18,7 @@ import { fileSizeLabel } from "../utils/fileUtils";
 const MessageContainer = styled(Box)(({ theme }) => ({
   display: "flex",
   flexDirection: "column",
-  gap: theme.spacing(3),
+  gap: theme.spacing(4),
 }));
 
 const MessageRow = styled(Box)(({ theme, $isuser }) => ({
@@ -27,13 +30,15 @@ const MessageRow = styled(Box)(({ theme, $isuser }) => ({
 
 const UserBubble = styled(Box)(({ theme }) => ({
   maxWidth: "80%",
-  backgroundColor:
-    theme.palette.mode === "dark" ? theme.palette.primary.dark : theme.palette.primary.main,
-  color: theme.palette.primary.contrastText,
-  padding: theme.spacing(1.25, 2),
-  borderRadius: "18px 18px 4px 18px",
+  backgroundColor: "#14b8a6",
+  color: "#0b0d13",
+  padding: theme.spacing(1, 2),
+  borderRadius: "16px 16px 4px 16px",
   wordBreak: "break-word",
   boxShadow: "none",
+  "& .MuiTypography-root": {
+    fontWeight: 450,
+  },
 }));
 
 const AssistantBubble = styled(Box)(({ theme }) => ({
@@ -42,75 +47,115 @@ const AssistantBubble = styled(Box)(({ theme }) => ({
   color: theme.palette.text.primary,
   padding: theme.spacing(0.5, 0),
   wordBreak: "break-word",
+  lineHeight: 1.75,
   "& pre": {
-    backgroundColor:
-      theme.palette.mode === "dark" ? theme.palette.grey[900] : theme.palette.grey[100],
-    padding: theme.spacing(1.5),
-    borderRadius: theme.spacing(1),
+    backgroundColor: "#0f1119",
+    padding: theme.spacing(2),
+    borderRadius: 10,
     overflow: "auto",
-    fontSize: "0.875rem",
-    border: `1px solid ${theme.palette.divider}`,
+    fontSize: "0.85rem",
+    border: "1px solid rgba(255,255,255,0.06)",
+    margin: theme.spacing(1.5, 0),
+    fontFamily: '"JetBrains Mono", "Fira Code", monospace',
   },
   "& code": {
-    backgroundColor:
-      theme.palette.mode === "dark" ? theme.palette.grey[900] : theme.palette.grey[100],
-    padding: theme.spacing(0.25, 0.75),
-    borderRadius: theme.spacing(0.5),
-    fontSize: "0.875rem",
-    fontFamily: "monospace",
+    backgroundColor: "rgba(255,255,255,0.06)",
+    padding: theme.spacing(0.15, 0.6),
+    borderRadius: 4,
+    fontSize: "0.85rem",
+    fontFamily: '"JetBrains Mono", "Fira Code", monospace',
+    color: "#2dd4bf",
   },
   "& pre code": {
     backgroundColor: "transparent",
     padding: 0,
     border: "none",
+    color: "inherit",
+    borderRadius: 0,
   },
   "& p": {
     margin: theme.spacing(0.5, 0),
-    lineHeight: 1.7,
+    lineHeight: 1.75,
   },
   "& ul, & ol": {
-    paddingLeft: theme.spacing(2),
-    margin: theme.spacing(0.5, 0),
+    paddingLeft: theme.spacing(2.5),
+    margin: theme.spacing(0.75, 0),
   },
   "& li": {
-    margin: theme.spacing(0.25, 0),
+    margin: theme.spacing(0.3, 0),
+    lineHeight: 1.65,
   },
   "& h1, & h2, & h3, & h4, & h5, & h6": {
-    margin: theme.spacing(1, 0, 0.5),
+    margin: theme.spacing(1.5, 0, 0.5),
+    color: "#e2e8f0",
+    fontWeight: 600,
   },
+  "& h1": { fontSize: "1.4rem" },
+  "& h2": { fontSize: "1.2rem" },
+  "& h3": { fontSize: "1.1rem" },
   "& blockquote": {
-    borderLeft: `3px solid ${theme.palette.primary.main}`,
-    margin: theme.spacing(1, 0),
+    borderLeft: "3px solid #14b8a6",
+    margin: theme.spacing(1.25, 0),
     paddingLeft: theme.spacing(2),
-    color: theme.palette.text.secondary,
+    color: "#94a3b8",
+    fontStyle: "italic",
   },
   "& table": {
     borderCollapse: "collapse",
     width: "100%",
-    margin: theme.spacing(1, 0),
+    margin: theme.spacing(1.5, 0),
+    fontSize: "0.875rem",
   },
   "& th, & td": {
-    border: `1px solid ${theme.palette.divider}`,
-    padding: theme.spacing(0.5, 1),
+    border: "1px solid rgba(255,255,255,0.08)",
+    padding: theme.spacing(0.75, 1.25),
     textAlign: "left",
   },
   "& th": {
-    backgroundColor:
-      theme.palette.mode === "dark" ? theme.palette.grey[900] : theme.palette.grey[100],
+    backgroundColor: "#1a1f35",
     fontWeight: 600,
+    color: "#e2e8f0",
+  },
+  "& td": {
+    color: "#94a3b8",
   },
   "& a": {
-    color: theme.palette.primary.main,
-    textDecoration: "underline",
+    color: "#2dd4bf",
+    textDecoration: "none",
+    "&:hover": {
+      textDecoration: "underline",
+    },
+  },
+  "& hr": {
+    border: "none",
+    borderTop: "1px solid rgba(255,255,255,0.08)",
+    margin: theme.spacing(2, 0),
+  },
+  // KaTeX math styling
+  "& .katex-display": {
+    margin: theme.spacing(1.5, 0),
+    overflowX: "auto",
+    overflowY: "hidden",
+  },
+  "& .katex": {
+    fontSize: "1.1em",
+  },
+  // Strong/em emphasis colors
+  "& strong": {
+    color: "#e2e8f0",
+    fontWeight: 600,
+  },
+  "& em": {
+    color: "#94a3b8",
   },
 }));
 
 const StreamingIndicator = styled(Box)(({ theme }) => ({
   display: "inline-block",
-  width: 8,
-  height: 16,
-  backgroundColor: theme.palette.primary.main,
-  borderRadius: 1,
+  width: 6,
+  height: 14,
+  backgroundColor: "#14b8a6",
+  borderRadius: 3,
   animation: "blink 1s infinite",
   marginLeft: 4,
   verticalAlign: "text-bottom",
@@ -121,9 +166,9 @@ const StreamingIndicator = styled(Box)(({ theme }) => ({
 }));
 
 const AvatarIcon = styled(Box)(({ theme }) => ({
-  width: 26,
-  height: 26,
-  borderRadius: "50%",
+  width: 28,
+  height: 28,
+  borderRadius: "8px",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
@@ -132,18 +177,16 @@ const AvatarIcon = styled(Box)(({ theme }) => ({
 }));
 
 const UserAvatar = styled(AvatarIcon)(({ theme }) => ({
-  backgroundColor: theme.palette.primary.main,
-  color: theme.palette.primary.contrastText,
+  backgroundColor: "#14b8a6",
+  color: "#0b0d13",
 }));
 
 const BotAvatar = styled(AvatarIcon)(({ theme }) => ({
-  backgroundColor:
-    theme.palette.mode === "dark" ? theme.palette.grey[800] : theme.palette.grey[200],
-  color: theme.palette.mode === "dark" ? theme.palette.grey[400] : theme.palette.grey[600],
+  backgroundColor: "rgba(20,184,166,0.1)",
+  color: "#14b8a6",
 }));
 
 // Wrapper for a single message that adds a hover-reveal edit button.
-// Padding is added on the button side so the hover area includes the button.
 const EditableMessageRow = ({ message, isUser, isStreaming, isEditable, onEdit, children }) => {
   const [hovered, setHovered] = useState(false);
 
@@ -154,8 +197,6 @@ const EditableMessageRow = ({ message, isUser, isStreaming, isEditable, onEdit, 
       onMouseLeave={() => setHovered(false)}
       sx={{
         position: "relative",
-        // Add padding on the edit-button side so the hover area
-        // extends to cover the button (which sits just outside).
         ...(isUser ? { paddingRight: 2 } : { paddingLeft: 2 }),
       }}
     >
@@ -168,17 +209,17 @@ const EditableMessageRow = ({ message, isUser, isStreaming, isEditable, onEdit, 
             sx={{
               position: "absolute",
               top: 0,
-              // Place the button in the padded area (still inside the hover zone)
               left: isUser ? "auto" : 0,
               right: isUser ? 0 : "auto",
-              bgcolor: "background.paper",
-              boxShadow: 1,
-              "&:hover": { bgcolor: "action.hover" },
+              bgcolor: "#1a1f35",
+              color: "#64748b",
+              boxShadow: "0 2px 8px rgba(0,0,0,0.3)",
+              "&:hover": { bgcolor: "#252b40", color: "#e2e8f0" },
               opacity: hovered ? 1 : 0,
-              transition: "opacity 0.15s",
+              transition: "opacity 0.15s ease",
             }}
           >
-            <EditIcon sx={{ fontSize: 16 }} />
+            <EditIcon sx={{ fontSize: 14 }} />
           </IconButton>
         </Tooltip>
       )}
@@ -219,7 +260,12 @@ const MessageList = ({ messages = [], editableMessageId, onEditMessage }) => {
               </UserBubble>
             ) : (
               <AssistantBubble>
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm, remarkMath]}
+                  rehypePlugins={[rehypeKatex]}
+                >
+                  {message.content}
+                </ReactMarkdown>
                 {isStreaming && <StreamingIndicator />}
               </AssistantBubble>
             )}
@@ -266,7 +312,12 @@ const MessageList = ({ messages = [], editableMessageId, onEditMessage }) => {
               </UserBubble>
             ) : (
               <AssistantBubble>
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm, remarkMath]}
+                  rehypePlugins={[rehypeKatex]}
+                >
+                  {message.content}
+                </ReactMarkdown>
                 {isStreaming && <StreamingIndicator />}
               </AssistantBubble>
             )}
@@ -287,16 +338,16 @@ const MessageList = ({ messages = [], editableMessageId, onEditMessage }) => {
 const AttBox = styled(Box)(({ theme }) => ({
   display: "flex",
   flexWrap: "wrap",
-  gap: theme.spacing(1),
-  marginBottom: theme.spacing(1),
+  gap: theme.spacing(0.75),
+  marginBottom: theme.spacing(0.75),
 }));
 
 const ImgThumb = styled(Box)(({ theme }) => ({
-  width: 80,
-  height: 80,
-  borderRadius: theme.spacing(1),
+  width: 72,
+  height: 72,
+  borderRadius: 8,
   overflow: "hidden",
-  border: `1px solid ${theme.palette.div}`,
+  border: "1px solid rgba(0,0,0,0.15)",
   "& img": { width: "100%", height: "100%", objectFit: "cover" },
 }));
 
@@ -304,11 +355,11 @@ const FileChip = styled(Box)(({ theme }) => ({
   display: "inline-flex",
   alignItems: "center",
   gap: theme.spacing(0.5),
-  padding: theme.spacing(0.5, 1),
-  borderRadius: theme.spacing(1),
-  backgroundColor:
-    theme.palette.mode === "dark" ? theme.palette.grey[800] : theme.palette.grey[200],
-  fontSize: "0.75rem",
+  padding: theme.spacing(0.4, 0.8),
+  borderRadius: 6,
+  backgroundColor: "rgba(0,0,0,0.15)",
+  fontSize: "0.72rem",
+  color: "#0b0d13",
 }));
 
 function AttachmentPreviews({ attachments }) {
@@ -328,9 +379,9 @@ function AttachmentPreviews({ attachments }) {
         const Icon = att.type === "pdf" ? PdfIcon : FileIcon;
         return (
           <FileChip key={att.id}>
-            <Icon sx={{ fontSize: 14 }} />
+            <Icon sx={{ fontSize: 12 }} />
             <span>{att.name}</span>
-            <span style={{ opacity: 0.6 }}>{fileSizeLabel(att.size)}</span>
+            <span style={{ opacity: 0.7 }}>{fileSizeLabel(att.size)}</span>
           </FileChip>
         );
       })}

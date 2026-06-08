@@ -2,15 +2,22 @@
  * File utilities for reading and classifying attachments.
  * Images are base64-encoded for Ollama's `images` field.
  * Text files are read as strings and injected into the prompt.
- * PDFs have their text extracted via pdfjs-dist.
+ * PDFs have their text extracted via pdfjs-dist (lazy-loaded).
  */
 
-import * as pdfjsLib from "pdfjs-dist";
+// pdfjs-dist is lazy-loaded on first PDF use to avoid bundling
+// ~800 KB of PDF parsing code into the initial page load.
+let _pdfjsLib = null;
 
-// Use the worker bundled with the installed package so it always matches.
-// The `?url` suffix tells Vite to return the asset URL instead of importing the module.
-import pdfjsWorker from "pdfjs-dist/build/pdf.worker.min.mjs?url";
-pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
+async function getPdfjs() {
+  if (!_pdfjsLib) {
+    const pdfjs = await import("pdfjs-dist");
+    const workerModule = await import("pdfjs-dist/build/pdf.worker.min.mjs?url");
+    pdfjs.GlobalWorkerOptions.workerSrc = workerModule.default;
+    _pdfjsLib = pdfjs;
+  }
+  return _pdfjsLib;
+}
 
 // ── Supported file types ──────────────────────────────────────────────
 
@@ -210,6 +217,7 @@ export async function processFile(file) {
  */
 async function extractPdfText(file) {
   try {
+    const pdfjsLib = await getPdfjs();
     const buffer = await readAsArrayBuffer(file);
     const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
     const pages = [];

@@ -17,8 +17,6 @@ import {
 } from "@mui/material";
 import {
   Settings as SettingsIcon,
-  DarkMode as DarkModeIcon,
-  LightMode as LightModeIcon,
   Cloud as CloudIcon,
   Refresh as RefreshIcon,
   MoreVert as MoreVertIcon,
@@ -28,7 +26,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { useOllama } from "../contexts/OllamaContext";
 import { useSettings } from "../contexts/SettingsContext";
 
-const Header = ({ setDarkMode, darkMode, sidebarOpen, onToggleSidebar }) => {
+const Header = ({ sidebarOpen, onToggleSidebar }) => {
   const { ollamaStatus, models, isCloudMode, getAllAvailableModels, cloudModels, checkConnection } =
     useOllama();
   const { currentModel, setCurrentModel } = useSettings();
@@ -62,35 +60,48 @@ const Header = ({ setDarkMode, darkMode, sidebarOpen, onToggleSidebar }) => {
         : "Off";
 
   return (
-    <AppBar position="static" elevation={1}>
-      <Toolbar variant="dense" sx={{ gap: 1 }}>
+    <AppBar position="static" elevation={0}>
+      <Toolbar variant="dense" sx={{ gap: 1, minHeight: 48 }}>
         {/* Sidebar toggle */}
         <IconButton
           color="inherit"
           onClick={onToggleSidebar}
           size="small"
           title={sidebarOpen ? "Hide sidebar" : "Show sidebar"}
+          sx={{ color: "#94a3b8" }}
         >
           <MenuIcon fontSize="small" />
         </IconButton>
 
         {/* App title — hidden on very small screens */}
         {!isCompact && (
-          <Typography variant="h6" component="div" sx={{ fontWeight: 600, whiteSpace: "nowrap" }}>
+          <Typography
+            variant="h6"
+            component="div"
+            sx={{
+              fontWeight: 700,
+              whiteSpace: "nowrap",
+              color: "#e2e8f0",
+              letterSpacing: "-0.02em",
+              fontSize: "1.05rem",
+            }}
+          >
             Synverse
           </Typography>
         )}
 
-        {/* Connection status chip — compact on small screens */}
+        {/* Connection status chip */}
         <Chip
           size="small"
           label={statusLabel}
           color={statusColor}
           variant="outlined"
           sx={{
-            borderColor: "rgba(255,255,255,0.5)",
-            color: "rgba(255,255,255,0.9)",
+            borderColor: ollamaStatus === "connected" ? "rgba(20,184,166,0.4)" : undefined,
+            color: ollamaStatus === "connected" ? "#2dd4bf" : undefined,
             flexShrink: 0,
+            fontSize: "0.7rem",
+            height: 24,
             "& .MuiChip-label": { px: isCompact ? 0.5 : 1 },
           }}
           icon={
@@ -100,33 +111,42 @@ const Header = ({ setDarkMode, darkMode, sidebarOpen, onToggleSidebar }) => {
           }
         />
 
-        {/* Model selector — fills remaining space */}
+        {/* Model selector */}
         <FormControl size="small" sx={{ flex: 1, minWidth: 0 }}>
-          <InputLabel sx={{ color: "rgba(255,255,255,0.7)" }}>Model</InputLabel>
+          <InputLabel sx={{ color: "#64748b", fontSize: "0.85rem" }}>Model</InputLabel>
           <Select
             value={currentModel || ""}
             onChange={(e) => handleModelChange(e.target.value)}
             label="Model"
             sx={{
-              bgcolor: "rgba(255,255,255,0.1)",
-              borderRadius: 1,
+              bgcolor: "rgba(255,255,255,0.04)",
+              borderRadius: 1.5,
+              fontSize: "0.85rem",
               "& .MuiSelect-select": {
-                color: "white",
+                color: "#e2e8f0",
                 whiteSpace: "nowrap",
                 overflow: "hidden",
                 textOverflow: "ellipsis",
                 pr: 3,
+                py: 0.5,
               },
               "& .MuiOutlinedInput-notchedOutline": {
-                borderColor: "rgba(255,255,255,0.3)",
+                borderColor: "rgba(255,255,255,0.08)",
               },
               "&:hover .MuiOutlinedInput-notchedOutline": {
-                borderColor: "rgba(255,255,255,0.5)",
+                borderColor: "rgba(255,255,255,0.14)",
+              },
+              "&.Mui-focused .MuiOutlinedInput-notchedOutline": {
+                borderColor: "#14b8a6",
               },
             }}
             MenuProps={{
               PaperProps: {
-                sx: { maxHeight: 400 },
+                sx: {
+                  maxHeight: 400,
+                  bgcolor: "#1a1f35",
+                  border: "1px solid rgba(255,255,255,0.08)",
+                },
               },
             }}
           >
@@ -141,7 +161,7 @@ const Header = ({ setDarkMode, darkMode, sidebarOpen, onToggleSidebar }) => {
                 <MenuItem key={model.name} value={model.name} dense>
                   <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                     {model.name.includes("-cloud") && (
-                      <CloudIcon fontSize="small" color="primary" />
+                      <CloudIcon sx={{ fontSize: 14, color: "#14b8a6" }} />
                     )}
                     {model.name}
                   </Box>
@@ -149,7 +169,7 @@ const Header = ({ setDarkMode, darkMode, sidebarOpen, onToggleSidebar }) => {
               )),
             ]}
 
-            {/* Cloud models (when in cloud mode) */}
+            {/* Cloud models */}
             {isCloudMode &&
               cloudModels.length > 0 && [
                 <MenuItem key="cloud-header" disabled dense>
@@ -160,7 +180,7 @@ const Header = ({ setDarkMode, darkMode, sidebarOpen, onToggleSidebar }) => {
                 ...cloudModels.map((model) => (
                   <MenuItem key={model.name} value={model.name} dense>
                     <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                      <CloudIcon fontSize="small" color="primary" />
+                      <CloudIcon sx={{ fontSize: 14, color: "#14b8a6" }} />
                       {model.name}
                     </Box>
                   </MenuItem>
@@ -185,6 +205,7 @@ const Header = ({ setDarkMode, darkMode, sidebarOpen, onToggleSidebar }) => {
               size="small"
               onClick={(e) => setOverflowAnchorEl(e.currentTarget)}
               title="More actions"
+              sx={{ color: "#94a3b8" }}
             >
               <MoreVertIcon fontSize="small" />
             </IconButton>
@@ -192,6 +213,12 @@ const Header = ({ setDarkMode, darkMode, sidebarOpen, onToggleSidebar }) => {
               anchorEl={overflowAnchorEl}
               open={Boolean(overflowAnchorEl)}
               onClose={() => setOverflowAnchorEl(null)}
+              PaperProps={{
+                sx: {
+                  bgcolor: "#1a1f35",
+                  border: "1px solid rgba(255,255,255,0.08)",
+                },
+              }}
             >
               <MuiMenuItem
                 onClick={() => {
@@ -201,19 +228,6 @@ const Header = ({ setDarkMode, darkMode, sidebarOpen, onToggleSidebar }) => {
               >
                 <RefreshIcon fontSize="small" sx={{ mr: 1 }} />
                 Reconnect
-              </MuiMenuItem>
-              <MuiMenuItem
-                onClick={() => {
-                  setDarkMode(!darkMode);
-                  setOverflowAnchorEl(null);
-                }}
-              >
-                {darkMode ? (
-                  <LightModeIcon fontSize="small" sx={{ mr: 1 }} />
-                ) : (
-                  <DarkModeIcon fontSize="small" sx={{ mr: 1 }} />
-                )}
-                {darkMode ? "Light mode" : "Dark mode"}
               </MuiMenuItem>
               <MuiMenuItem
                 onClick={() => {
@@ -233,17 +247,9 @@ const Header = ({ setDarkMode, darkMode, sidebarOpen, onToggleSidebar }) => {
               onClick={checkConnection}
               size="small"
               title="Reconnect to Ollama"
+              sx={{ color: "#94a3b8", "&:hover": { color: "#e2e8f0" } }}
             >
               <RefreshIcon fontSize="small" />
-            </IconButton>
-
-            <IconButton
-              color="inherit"
-              onClick={() => setDarkMode(!darkMode)}
-              size="small"
-              title="Toggle theme"
-            >
-              {darkMode ? <LightModeIcon fontSize="small" /> : <DarkModeIcon fontSize="small" />}
             </IconButton>
 
             <IconButton
@@ -251,6 +257,7 @@ const Header = ({ setDarkMode, darkMode, sidebarOpen, onToggleSidebar }) => {
               onClick={() => navigate(isOnSettings ? "/" : "/settings")}
               size="small"
               title={isOnSettings ? "Back to Chat" : "Settings"}
+              sx={{ color: "#94a3b8", "&:hover": { color: "#e2e8f0" } }}
             >
               <SettingsIcon fontSize="small" />
             </IconButton>

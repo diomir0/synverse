@@ -6,3 +6,10 @@ dist/
 # Capacitor — Android build artifacts
 android/
 *.jks
+
+# Tauri — Rust build artifacts
+src-tauri/target/
+
+# Graphify-related files
+AGENTS.md
+.zed/

@@ -1,67 +1,277 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, lazy, Suspense } from "react";
 import { Routes, Route } from "react-router-dom";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
 import CssBaseline from "@mui/material/CssBaseline";
-import ChatPage from "./pages/ChatPage";
-import SettingsPage from "./pages/SettingsPage";
+import CircularProgress from "@mui/material/CircularProgress";
 import Header from "./components/Header";
 import { ConversationProvider } from "./contexts/ConversationContext";
 import { OllamaProvider } from "./contexts/OllamaContext";
 import { SettingsProvider } from "./contexts/SettingsContext";
-import { getItem, setItem } from "./utils/storageAdapter";
+
+const ChatPage = lazy(() => import("./pages/ChatPage"));
+const SettingsPage = lazy(() => import("./pages/SettingsPage"));
+
+// ── Dark theme inspired by AnythingLLM ──────────────────────────────
+// Deep navy-charcoal backgrounds, teal accent, generous spacing,
+// restrained visual elements. Dark-only — no light mode toggle.
+const theme = createTheme({
+  palette: {
+    mode: "dark",
+    primary: {
+      main: "#14b8a6",
+      light: "#2dd4bf",
+      dark: "#0d9488",
+      contrastText: "#0b0d13",
+    },
+    secondary: {
+      main: "#818cf8",
+      light: "#a5b4fc",
+      dark: "#6366f1",
+    },
+    background: {
+      default: "#0b0d13",
+      paper: "#111827",
+    },
+    text: {
+      primary: "#e2e8f0",
+      secondary: "#64748b",
+      disabled: "#475569",
+    },
+    divider: "rgba(255, 255, 255, 0.06)",
+    error: {
+      main: "#ef4444",
+    },
+    success: {
+      main: "#22c55e",
+    },
+    warning: {
+      main: "#f59e0b",
+    },
+    action: {
+      hover: "rgba(255, 255, 255, 0.04)",
+      selected: "rgba(20, 184, 166, 0.12)",
+      focus: "rgba(20, 184, 166, 0.12)",
+    },
+  },
+  typography: {
+    fontFamily: '"Plus Jakarta Sans", system-ui, -apple-system, sans-serif',
+    h4: {
+      fontWeight: 600,
+      letterSpacing: "-0.02em",
+    },
+    h5: {
+      fontWeight: 600,
+      letterSpacing: "-0.01em",
+    },
+    h6: {
+      fontWeight: 600,
+      letterSpacing: "-0.01em",
+    },
+    body1: {
+      lineHeight: 1.7,
+    },
+    body2: {
+      lineHeight: 1.5,
+    },
+    button: {
+      textTransform: "none",
+      fontWeight: 500,
+    },
+    caption: {
+      letterSpacing: "0.01em",
+    },
+  },
+  shape: {
+    borderRadius: 10,
+  },
+  shadows: [
+    "none",
+    "0 1px 2px rgba(0,0,0,0.3)",
+    "0 1px 3px rgba(0,0,0,0.3)",
+    "0 2px 6px rgba(0,0,0,0.3)",
+    "0 4px 12px rgba(0,0,0,0.4)",
+    "0 6px 16px rgba(0,0,0,0.4)",
+    "0 8px 24px rgba(0,0,0,0.5)",
+    "0 12px 32px rgba(0,0,0,0.5)",
+    "0 16px 48px rgba(0,0,0,0.6)",
+    ...Array(16).fill("0 16px 48px rgba(0,0,0,0.6)"),
+  ],
+  components: {
+    MuiAppBar: {
+      styleOverrides: {
+        root: {
+          backgroundColor: "#111827",
+          backgroundImage: "none",
+          boxShadow: "none",
+          borderBottom: "1px solid rgba(255,255,255,0.06)",
+        },
+      },
+    },
+    MuiButton: {
+      styleOverrides: {
+        root: {
+          textTransform: "none",
+          fontWeight: 500,
+          borderRadius: 8,
+        },
+        containedPrimary: {
+          "&:hover": {
+            backgroundColor: "#0d9488",
+          },
+        },
+      },
+    },
+    MuiCard: {
+      styleOverrides: {
+        root: {
+          backgroundColor: "#111827",
+          backgroundImage: "none",
+          border: "1px solid rgba(255,255,255,0.06)",
+          borderRadius: 12,
+          boxShadow: "none",
+        },
+      },
+    },
+    MuiCardHeader: {
+      styleOverrides: {
+        root: {
+          padding: "16px 20px 8px",
+        },
+        title: {
+          fontWeight: 600,
+          fontSize: "1rem",
+        },
+        subheader: {
+          color: "#64748b",
+          fontSize: "0.8125rem",
+        },
+      },
+    },
+    MuiCardContent: {
+      styleOverrides: {
+        root: {
+          padding: "8px 20px 20px",
+        },
+      },
+    },
+    MuiChip: {
+      styleOverrides: {
+        root: {
+          fontWeight: 500,
+          borderRadius: 6,
+        },
+      },
+    },
+    MuiDialog: {
+      styleOverrides: {
+        paper: {
+          backgroundColor: "#1a1f35",
+          backgroundImage: "none",
+          border: "1px solid rgba(255,255,255,0.08)",
+          borderRadius: 12,
+        },
+      },
+    },
+    MuiTextField: {
+      styleOverrides: {
+        root: {
+          "& .MuiOutlinedInput-root": {
+            borderRadius: 8,
+            "& fieldset": {
+              borderColor: "rgba(255,255,255,0.08)",
+            },
+            "&:hover fieldset": {
+              borderColor: "rgba(255,255,255,0.14)",
+            },
+            "&.Mui-focused fieldset": {
+              borderColor: "#14b8a6",
+            },
+          },
+          "& .MuiInputLabel-root": {
+            color: "#64748b",
+          },
+          "& .MuiInputLabel-root.Mui-focused": {
+            color: "#14b8a6",
+          },
+        },
+      },
+    },
+    MuiSelect: {
+      styleOverrides: {
+        root: {
+          borderRadius: 8,
+        },
+      },
+    },
+    MuiMenuItem: {
+      styleOverrides: {
+        root: {
+          borderRadius: 6,
+          margin: "2px 0",
+          padding: "8px 12px",
+          "&.Mui-selected": {
+            backgroundColor: "rgba(20,184,166,0.12)",
+            "&:hover": {
+              backgroundColor: "rgba(20,184,166,0.18)",
+            },
+          },
+        },
+      },
+    },
+    MuiPaper: {
+      styleOverrides: {
+        root: {
+          backgroundImage: "none",
+        },
+      },
+    },
+    MuiAlert: {
+      styleOverrides: {
+        root: {
+          borderRadius: 8,
+        },
+      },
+    },
+    MuiSwitch: {
+      styleOverrides: {
+        root: {
+          "& .MuiSwitch-switchBase.Mui-checked": {
+            color: "#14b8a6",
+          },
+          "& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track": {
+            backgroundColor: "#14b8a6",
+          },
+        },
+      },
+    },
+    MuiFormControlLabel: {
+      styleOverrides: {
+        label: {
+          color: "#94a3b8",
+        },
+      },
+    },
+    MuiDivider: {
+      styleOverrides: {
+        root: {
+          borderColor: "rgba(255,255,255,0.06)",
+        },
+      },
+    },
+    MuiCircularProgress: {
+      styleOverrides: {
+        root: {
+          color: "#14b8a6",
+        },
+      },
+    },
+  },
+});
 
 const App = () => {
-  const [darkMode, setDarkMode] = useState(() => {
-    // Synchronous first paint — use localStorage so there's no flash.
-    // The storage adapter is async; for theme we prefer instant feedback.
-    const saved = localStorage.getItem("theme");
-    return saved ? JSON.parse(saved) : window.matchMedia("(prefers-color-scheme: dark)").matches;
-  });
-
-  // Persist theme changes (async — works on both web and native)
-  useEffect(() => {
-    setItem("theme", JSON.stringify(darkMode));
-  }, [darkMode]);
-
-  // On native platforms, overwrite with the value from persistent storage
-  // (Capacitor Preferences).  On web this is a no-op since localStorage
-  // and Preferences stay in sync via the adapter.
-  useEffect(() => {
-    (async () => {
-      const stored = await getItem("theme");
-      if (stored !== null) {
-        const parsed = JSON.parse(stored);
-        if (parsed !== darkMode) setDarkMode(parsed);
-      }
-    })();
-    // Only run once on mount
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const theme = createTheme({
-    palette: {
-      mode: darkMode ? "dark" : "light",
-      primary: {
-        main: "#1976d2",
-      },
-      secondary: {
-        main: "#dc004e",
-      },
-      background: {
-        default: darkMode ? "#121212" : "#f5f5f5",
-        paper: darkMode ? "#1e1e1e" : "#ffffff",
-      },
-    },
-    typography: {
-      fontFamily: "Roboto, Arial, sans-serif",
-    },
-    shape: {
-      borderRadius: 8,
-    },
-  });
+  console.log("[SV] App: rendering");
 
   // ── Sidebar toggle state ──────────────────────────────────────
-  // Auto-collapse on narrow screens (< 600 px, typical phone portrait).
   const [sidebarOpen, setSidebarOpen] = useState(() => window.innerWidth >= 600);
 
   // Collapse sidebar when the viewport shrinks below the breakpoint.
@@ -83,25 +293,37 @@ const App = () => {
         <SettingsProvider>
           <ConversationProvider>
             <div className="app-container">
-              <Header
-                setDarkMode={setDarkMode}
-                darkMode={darkMode}
-                sidebarOpen={sidebarOpen}
-                onToggleSidebar={toggleSidebar}
-              />
+              <Header sidebarOpen={sidebarOpen} onToggleSidebar={toggleSidebar} />
               <div className="main-content">
-                <Routes>
-                  <Route
-                    path="/"
-                    element={<ChatPage sidebarOpen={sidebarOpen} onToggleSidebar={toggleSidebar} />}
-                  />
-                  <Route
-                    path="/settings"
-                    element={
-                      <SettingsPage sidebarOpen={sidebarOpen} onToggleSidebar={toggleSidebar} />
-                    }
-                  />
-                </Routes>
+                <Suspense
+                  fallback={
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "center",
+                        alignItems: "center",
+                        height: "100%",
+                      }}
+                    >
+                      <CircularProgress />
+                    </div>
+                  }
+                >
+                  <Routes>
+                    <Route
+                      path="/"
+                      element={
+                        <ChatPage sidebarOpen={sidebarOpen} onToggleSidebar={toggleSidebar} />
+                      }
+                    />
+                    <Route
+                      path="/settings"
+                      element={
+                        <SettingsPage sidebarOpen={sidebarOpen} onToggleSidebar={toggleSidebar} />
+                      }
+                    />
+                  </Routes>
+                </Suspense>
               </div>
             </div>
           </ConversationProvider>

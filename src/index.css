@@ -4,10 +4,22 @@
     box-sizing: border-box;
 }
 
+html,
 body {
-    font-family: "Roboto", "Helvetica", "Arial", sans-serif;
-    height: 100vh;
+    height: 100%;
     overflow: hidden;
+}
+
+body {
+    font-family:
+        "Plus Jakarta Sans",
+        system-ui,
+        -apple-system,
+        sans-serif;
+    background-color: #0b0d13;
+    color: #e2e8f0;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
 }
 
 .app-container {
@@ -20,13 +32,12 @@ body {
 .main-content {
     flex: 1;
     overflow: hidden;
-    /* NOT display:flex — the route child must fill this by itself */
 }
 
-/* Scrollbar styling */
+/* Scrollbar styling — thin, subtle */
 ::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
+    width: 6px;
+    height: 6px;
 }
 
 ::-webkit-scrollbar-track {
@@ -34,10 +45,47 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-    background: rgba(128, 128, 128, 0.3);
-    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-    background: rgba(128, 128, 128, 0.5);
+    background: rgba(255, 255, 255, 0.14);
+}
+
+/* Firefox scrollbar */
+* {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.08) transparent;
+}
+
+/* Selection color */
+::selection {
+    background: rgba(20, 184, 166, 0.3);
+    color: #fff;
+}
+
+/* Smooth transitions for theme-aware elements */
+a {
+    color: #14b8a6;
+    text-decoration: none;
+}
+
+a:hover {
+    text-decoration: underline;
+}
+
+/* KaTeX overrides for dark theme */
+.katex-display {
+    color: #e2e8f0;
+}
+
+.katex {
+    color: #e2e8f0;
+}
+
+/* Code font override */
+code,
+pre {
+    font-family: "JetBrains Mono", "Fira Code", "Cascadia Code", "Consolas", monospace;
 }

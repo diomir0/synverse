@@ -12,6 +12,8 @@ import {
   InsertDriveFile as FileIcon,
   PictureAsPdf as PdfIcon,
   Edit as EditIcon,
+  ContentCopy as CopyIcon,
+  Check as CopiedIcon,
 } from "@mui/icons-material";
 import { fileSizeLabel } from "../utils/fileUtils";
 
@@ -227,6 +229,73 @@ const EditableMessageRow = ({ message, isUser, isStreaming, isEditable, onEdit, 
   );
 };
 
+// Wrapper for assistant messages that adds a hover/tap-reveal copy button.
+const AssistantMessageRow = ({ message, children }) => {
+  const [hovered, setHovered] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [tapped, setTapped] = useState(false);
+
+  const handleCopy = async (e) => {
+    e.stopPropagation();
+    try {
+      await navigator.clipboard.writeText(message.content);
+    } catch {
+      // Fallback for environments where Clipboard API is unavailable
+      const ta = document.createElement("textarea");
+      ta.value = message.content;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+    }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
+
+  // On mobile (touch), tapping the message reveals the copy button.
+  // On desktop (hover), hovering reveals it.
+  const showCopy = hovered || tapped;
+
+  return (
+    <MessageRow
+      $isuser={false}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => {
+        setHovered(false);
+        setTapped(false);
+      }}
+      onTouchEnd={() => setTapped((prev) => !prev)}
+      sx={{ position: "relative", paddingLeft: 2 }}
+    >
+      {children}
+      <Tooltip title={copied ? "Copied!" : "Copy answer"}>
+        <IconButton
+          size="small"
+          onClick={handleCopy}
+          sx={{
+            position: "absolute",
+            top: 0,
+            right: 0,
+            bgcolor: "#1a1f35",
+            color: copied ? "#14b8a6" : "#64748b",
+            boxShadow: "0 2px 8px rgba(0,0,0,0.3)",
+            "&:hover": { bgcolor: "#252b40", color: "#e2e8f0" },
+            opacity: showCopy ? 1 : 0,
+            transition: "opacity 0.15s ease",
+            // Ensure tap target is large enough on mobile
+            minWidth: 36,
+            minHeight: 36,
+          }}
+        >
+          {copied ? <CopiedIcon sx={{ fontSize: 14 }} /> : <CopyIcon sx={{ fontSize: 14 }} />}
+        </IconButton>
+      </Tooltip>
+    </MessageRow>
+  );
+};
+
 const MessageList = ({ messages = [], editableMessageId, onEditMessage }) => {
   if (!messages || messages.length === 0) {
     return null;
@@ -292,14 +361,11 @@ const MessageList = ({ messages = [], editableMessageId, onEditMessage }) => {
           );
         }
 
-        return (
-          <MessageRow key={message.id || index} $isuser={isUser}>
-            {!isUser && (
-              <BotAvatar>
-                <BotIcon sx={{ fontSize: 14 }} />
-              </BotAvatar>
-            )}
-            {isUser ? (
+        // User messages render with a simple MessageRow.
+        // Assistant messages use AssistantMessageRow for the copy button.
+        if (isUser) {
+          return (
+            <MessageRow key={message.id || index} $isuser={isUser}>
               <UserBubble>
                 {message.attachments && message.attachments.length > 0 && (
                   <AttachmentPreviews attachments={message.attachments} />
@@ -310,23 +376,25 @@ const MessageList = ({ messages = [], editableMessageId, onEditMessage }) => {
                   </Typography>
                 )}
               </UserBubble>
-            ) : (
-              <AssistantBubble>
-                <ReactMarkdown
-                  remarkPlugins={[remarkGfm, remarkMath]}
-                  rehypePlugins={[rehypeKatex]}
-                >
-                  {message.content}
-                </ReactMarkdown>
-                {isStreaming && <StreamingIndicator />}
-              </AssistantBubble>
-            )}
-            {isUser && (
               <UserAvatar>
                 <PersonIcon sx={{ fontSize: 14 }} />
               </UserAvatar>
-            )}
-          </MessageRow>
+            </MessageRow>
+          );
+        }
+
+        return (
+          <AssistantMessageRow key={message.id || index} message={message}>
+            <BotAvatar>
+              <BotIcon sx={{ fontSize: 14 }} />
+            </BotAvatar>
+            <AssistantBubble>
+              <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>
+                {message.content}
+              </ReactMarkdown>
+              {isStreaming && <StreamingIndicator />}
+            </AssistantBubble>
+          </AssistantMessageRow>
         );
       })}
     </MessageContainer>

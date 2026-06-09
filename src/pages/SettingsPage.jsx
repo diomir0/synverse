@@ -114,13 +114,29 @@ const SettingsPage = ({ sidebarOpen, onToggleSidebar }) => {
   return (
     <Box
       sx={{
+        position: "relative",
         display: "flex",
         height: "100%",
         width: "100%",
         bgcolor: "#0b0d13",
+        overflow: "hidden",
       }}
     >
       <Sidebar onNewConversation={() => {}} open={sidebarOpen} onToggle={onToggleSidebar} />
+      {sidebarOpen && (
+        <Box
+          onClick={onToggleSidebar}
+          sx={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            bgcolor: "rgba(0,0,0,0.4)",
+            zIndex: 1199,
+          }}
+        />
+      )}
       <Box sx={{ flex: 1, overflow: "auto", p: 3 }}>
         <Box sx={{ maxWidth: 900, mx: "auto" }}>
           <Typography

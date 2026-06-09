@@ -5,6 +5,7 @@ import https from "node:https";
 
 // https://vitejs.dev/config/
 export default defineConfig({
+  base: "./",
   plugins: [
     react(),
     // Dynamic Ollama proxy — reads target URL from X-Ollama-URL header

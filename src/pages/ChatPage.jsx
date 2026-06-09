@@ -291,21 +291,39 @@ const ChatPage = ({ sidebarOpen, onToggleSidebar }) => {
   return (
     <Box
       sx={{
+        position: "relative",
         display: "flex",
         height: "100%",
         width: "100%",
         bgcolor: "#0b0d13",
+        overflow: "hidden",
       }}
     >
-      {/* Sidebar */}
+      {/* Sidebar — overlays the chat content */}
       <Sidebar
         onNewConversation={handleNewConversation}
         open={sidebarOpen}
         onToggle={onToggleSidebar}
       />
 
+      {/* Backdrop — closes sidebar on tap/click outside */}
+      {sidebarOpen && (
+        <Box
+          onClick={onToggleSidebar}
+          sx={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            bgcolor: "rgba(0,0,0,0.4)",
+            zIndex: 1199,
+          }}
+        />
+      )}
+
       {/*
-        Main chat area — the outer box fills the remaining screen.
+        Main chat area — always fills the full width.
         Inside, content is centered horizontally like claude.ai:
         a wide but capped column floating in open space.
       */}

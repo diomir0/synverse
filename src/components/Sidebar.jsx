@@ -51,6 +51,10 @@ const Sidebar = ({ onNewConversation, open = true, onToggle }) => {
     if (isOnSettings) {
       navigate("/");
     }
+    // Close sidebar on mobile after selection
+    if (window.innerWidth < 600) {
+      onToggle();
+    }
   };
 
   const handleDeleteClick = (e, conversationId) => {
@@ -88,6 +92,10 @@ const Sidebar = ({ onNewConversation, open = true, onToggle }) => {
     if (isOnSettings) {
       navigate("/");
     }
+    // Close sidebar on mobile after creating new chat
+    if (window.innerWidth < 600) {
+      onToggle();
+    }
   };
 
   const formatTime = (timestamp) => {
@@ -112,16 +120,20 @@ const Sidebar = ({ onNewConversation, open = true, onToggle }) => {
   return (
     <Box
       sx={{
-        width: open ? 260 : 0,
-        minWidth: open ? 260 : 0,
-        height: "100%",
+        position: "absolute",
+        top: 0,
+        left: 0,
+        bottom: 0,
+        width: 260,
         bgcolor: "#0f1119",
         display: "flex",
         flexDirection: "column",
         overflow: "hidden",
-        transition:
-          "width 200ms cubic-bezier(0.4, 0, 0.2, 1), min-width 200ms cubic-bezier(0.4, 0, 0.2, 1)",
-        borderRight: open ? "1px solid rgba(255,255,255,0.06)" : "none",
+        zIndex: 1200,
+        transform: open ? "translateX(0)" : "translateX(-100%)",
+        transition: "transform 200ms cubic-bezier(0.4, 0, 0.2, 1)",
+        borderRight: "1px solid rgba(255,255,255,0.06)",
+        boxShadow: open ? "4px 0 12px rgba(0,0,0,0.4)" : "none",
       }}
     >
       {/* New Chat Button */}

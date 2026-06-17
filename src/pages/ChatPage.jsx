@@ -5,6 +5,7 @@ import { useSettings } from "../contexts/SettingsContext";
 import Sidebar from "../components/Sidebar";
 import MessageList from "../components/MessageList";
 import MessageInput from "../components/MessageInput";
+import ToolIndicator from "../components/ToolIndicator";
 import { Box, CircularProgress, Typography, Button } from "@mui/material";
 import {
   Cloud as CloudIcon,
@@ -27,9 +28,17 @@ function generateAutoTitle(message) {
 }
 
 const ChatPage = ({ sidebarOpen, onToggleSidebar }) => {
-  const { ollamaStatus, generateResponse, stopGeneration, checkConnection, isCloudMode } =
-    useOllama();
-  const { currentModel, globalSystemPrompt } = useSettings();
+  const {
+    ollamaStatus,
+    generateResponse,
+    generateResponseWithTools,
+    checkModelSupportsTools,
+    stopGeneration,
+    checkConnection,
+    isCloudMode,
+  } = useOllama();
+  const { currentModel, globalSystemPrompt, webSearchEnabled, webSearchProvider, webSearchApiKey } =
+    useSettings();
   const {
     conversations,
     activeConversation,
@@ -44,6 +53,8 @@ const ChatPage = ({ sidebarOpen, onToggleSidebar }) => {
   const [pendingAttachments, setPendingAttachments] = useState([]);
   const [prefilledMessage, setPrefilledMessage] = useState("");
   const [showCloudBanner, setShowCloudBanner] = useState(true);
+  const [activeToolCalls, setActiveToolCalls] = useState(null);
+  const [modelSupportsTools, setModelSupportsTools] = useState(false);
   const messagesEndRef = useRef(null);
   const cloudBannerTimerRef = useRef(null);
 
@@ -70,6 +81,21 @@ const ChatPage = ({ sidebarOpen, onToggleSidebar }) => {
       setActiveConversation(conversations[0]);
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Detect whether the currently selected model supports tool calling.
+  useEffect(() => {
+    let cancelled = false;
+    if (currentModel) {
+      checkModelSupportsTools(currentModel).then((supports) => {
+        if (!cancelled) setModelSupportsTools(supports);
+      });
+    } else {
+      setModelSupportsTools(false);
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [currentModel, checkModelSupportsTools]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -123,15 +149,41 @@ const ChatPage = ({ sidebarOpen, onToggleSidebar }) => {
       };
 
       setActiveConversation(updatedConversation);
+      setActiveToolCalls(null);
 
-      const fullResponse = await generateResponse(
-        updatedMessages,
-        currentModel,
-        globalSystemPrompt,
-        (chunk, accumulated) => {
-          setStreamingContent(accumulated);
-        },
-      );
+      const toolConfig = { provider: webSearchProvider, apiKey: webSearchApiKey };
+      const useTools = webSearchEnabled && modelSupportsTools;
+
+      // Append tool guidance to the system prompt when web tools are active.
+      const effectiveSystemPrompt = useTools
+        ? `${globalSystemPrompt || ""}\n\nYou have access to web_search and web_fetch tools. Use them whenever the user asks about current events, recent data, prices, weather, or any facts that may have changed after your training cutoff. Always cite the source URL when you use fetched information, and prefer concise, factual answers.`.trim()
+        : globalSystemPrompt;
+
+      const responseHandler = (chunk, accumulated, meta) => {
+        if (meta?.toolCalls) {
+          setActiveToolCalls(meta.toolCalls);
+        } else {
+          setActiveToolCalls(null);
+        }
+        setStreamingContent(accumulated);
+      };
+
+      const fullResponse = useTools
+        ? await generateResponseWithTools(
+            updatedMessages,
+            currentModel,
+            effectiveSystemPrompt,
+            responseHandler,
+            { toolConfig, maxIterations: 3 },
+          )
+        : await generateResponse(
+            updatedMessages,
+            currentModel,
+            effectiveSystemPrompt,
+            responseHandler,
+          );
+
+      setActiveToolCalls(null);
 
       const aiMessage = {
         id: (Date.now() + 1).toString(),
@@ -409,17 +461,20 @@ const ChatPage = ({ sidebarOpen, onToggleSidebar }) => {
                       onEditMessage={handleEditMessage}
                     />
                     {showStreaming && (
-                      <MessageList
-                        messages={[
-                          {
-                            id: "streaming",
-                            role: "assistant",
-                            content: streamingContent,
-                            timestamp: new Date().toISOString(),
-                            isStreaming: true,
-                          },
-                        ]}
-                      />
+                      <>
+                        <ToolIndicator toolCalls={activeToolCalls} />
+                        <MessageList
+                          messages={[
+                            {
+                              id: "streaming",
+                              role: "assistant",
+                              content: streamingContent,
+                              timestamp: new Date().toISOString(),
+                              isStreaming: true,
+                            },
+                          ]}
+                        />
+                      </>
                     )}
                   </>
                 ) : (

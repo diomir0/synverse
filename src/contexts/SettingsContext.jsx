@@ -11,6 +11,11 @@ export const SettingsProvider = ({ children }) => {
   const [autoSave, setAutoSave] = useState(true);
   const [currentModel, setCurrentModel] = useState("");
 
+  // Web-search agent settings
+  const [webSearchEnabled, setWebSearchEnabled] = useState(false);
+  const [webSearchProvider, setWebSearchProvider] = useState("duckduckgo");
+  const [webSearchApiKey, setWebSearchApiKey] = useState("");
+
   // Loading flag — prevents writing defaults back to storage
   // before the real values have been read.
   const [loaded, setLoaded] = useState(false);
@@ -18,17 +23,31 @@ export const SettingsProvider = ({ children }) => {
   // Load persisted settings on mount
   useEffect(() => {
     (async () => {
-      const [storedPrompt, storedModel, storedAutoSave, storedCurrentModel] = await Promise.all([
+      const [
+        storedPrompt,
+        storedModel,
+        storedAutoSave,
+        storedCurrentModel,
+        storedWebSearchEnabled,
+        storedWebSearchProvider,
+        storedWebSearchApiKey,
+      ] = await Promise.all([
         getItem("globalSystemPrompt"),
         getItem("defaultModel"),
         getItem("autoSave"),
         getItem("currentModel"),
+        getItem("webSearchEnabled"),
+        getItem("webSearchProvider"),
+        getItem("webSearchApiKey"),
       ]);
 
       if (storedPrompt !== null) setGlobalSystemPrompt(storedPrompt);
       if (storedModel !== null) setDefaultModel(storedModel);
       if (storedAutoSave !== null) setAutoSave(JSON.parse(storedAutoSave));
       if (storedCurrentModel !== null) setCurrentModel(storedCurrentModel);
+      if (storedWebSearchEnabled !== null) setWebSearchEnabled(JSON.parse(storedWebSearchEnabled));
+      if (storedWebSearchProvider !== null) setWebSearchProvider(storedWebSearchProvider);
+      if (storedWebSearchApiKey !== null) setWebSearchApiKey(storedWebSearchApiKey);
 
       setLoaded(true);
     })();
@@ -55,6 +74,21 @@ export const SettingsProvider = ({ children }) => {
     setItem("currentModel", currentModel);
   }, [currentModel, loaded]);
 
+  useEffect(() => {
+    if (!loaded) return;
+    setItem("webSearchEnabled", JSON.stringify(webSearchEnabled));
+  }, [webSearchEnabled, loaded]);
+
+  useEffect(() => {
+    if (!loaded) return;
+    setItem("webSearchProvider", webSearchProvider);
+  }, [webSearchProvider, loaded]);
+
+  useEffect(() => {
+    if (!loaded) return;
+    setItem("webSearchApiKey", webSearchApiKey);
+  }, [webSearchApiKey, loaded]);
+
   const value = {
     globalSystemPrompt,
     setGlobalSystemPrompt,
@@ -64,6 +98,12 @@ export const SettingsProvider = ({ children }) => {
     setAutoSave,
     currentModel,
     setCurrentModel,
+    webSearchEnabled,
+    setWebSearchEnabled,
+    webSearchProvider,
+    setWebSearchProvider,
+    webSearchApiKey,
+    setWebSearchApiKey,
   };
 
   return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>;

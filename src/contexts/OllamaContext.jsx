@@ -3,6 +3,12 @@ import { collectImages, formatTextAttachments } from "../utils/fileUtils";
 import { getItem, setItem } from "../utils/storageAdapter";
 import { getDefaultOllamaUrl, shouldUseProxyByDefault } from "../utils/platform";
 import { httpRequest, streamingChatRequest, cancelNativeRequest } from "../utils/networkAdapter";
+import {
+  AVAILABLE_TOOLS,
+  executeToolCall,
+  buildToolResultMessage,
+  buildSearchConfig,
+} from "../tools";
 
 const OllamaContext = createContext();
 
@@ -159,6 +165,7 @@ const CLOUD_MODELS = [
 export const OllamaProvider = ({ children }) => {
   const [ollamaStatus, setOllamaStatus] = useState("unknown");
   const [models, setModels] = useState([]);
+  const [modelCapabilities, setModelCapabilities] = useState({}); // {modelName: string[]}
 
   // Default values — will be overwritten by persisted settings on mount
   const [ollamaUrl, setOllamaUrlState] = useState(getDefaultOllamaUrl());
@@ -359,6 +366,65 @@ export const OllamaProvider = ({ children }) => {
     }
   }, [getApiBaseUrl, buildHeaders]); // stable
 
+  // Query /api/show for a model's capabilities and cache the result.
+  const checkModelSupportsTools = useCallback(
+    async (modelName) => {
+      if (!modelName) return false;
+      if (modelCapabilities[modelName]?.includes("tools")) return true;
+
+      try {
+        const baseUrl = getApiBaseUrl();
+        const response = await httpRequest(`${baseUrl}/api/show`, {
+          method: "POST",
+          headers: buildHeaders(),
+          body: JSON.stringify({ model: modelName }),
+        });
+
+        if (!response.ok) return false;
+        const data = await response.json();
+        const capabilities = data.capabilities || [];
+        setModelCapabilities((prev) => ({ ...prev, [modelName]: capabilities }));
+        return capabilities.includes("tools");
+      } catch (error) {
+        console.error(`[SV] Failed to fetch capabilities for ${modelName}:`, error);
+        return false;
+      }
+    },
+    [getApiBaseUrl, buildHeaders, modelCapabilities],
+  );
+
+  // Convert internal message list to the Ollama /api/chat message format.
+  // Used by both generateResponse and generateResponseWithTools.
+  const buildOllamaMessages = useCallback(
+    (messages, systemPrompt) => {
+      const chatMessages = [];
+      if (systemPrompt) {
+        chatMessages.push({ role: "system", content: systemPrompt });
+      }
+      for (const msg of messages) {
+        const chatMsg = { role: msg.role, content: msg.content };
+        if (msg.role === "tool") {
+          // Ollama uses tool_name on tool result messages.
+          if (msg.tool_name) chatMsg.tool_name = msg.tool_name;
+          // Preserve any tool_call_id if the backend expects it.
+          if (msg.tool_call_id) chatMsg.tool_call_id = msg.tool_call_id;
+        } else {
+          const textPart = formatTextAttachments(msg.attachments);
+          if (textPart) {
+            chatMsg.content = textPart + "\n\n" + chatMsg.content;
+          }
+          const images = collectImages(msg.attachments);
+          if (images.length > 0) {
+            chatMsg.images = images;
+          }
+        }
+        chatMessages.push(chatMsg);
+      }
+      return chatMessages;
+    },
+    [], // pure function of inputs
+  );
+
   // Generate a response using the /api/chat endpoint.
   // On web: streams tokens live via fetch + ReadableStream.
   // On native: fetches the complete response via CapacitorHttp (stream:false).
@@ -366,31 +432,7 @@ export const OllamaProvider = ({ children }) => {
     async (messages, model, systemPrompt, onChunk) => {
       abortControllerRef.current = new AbortController();
       const baseUrl = getApiBaseUrl();
-
-      // Build messages array for /api/chat
-      const chatMessages = [];
-
-      if (systemPrompt) {
-        chatMessages.push({ role: "system", content: systemPrompt });
-      }
-
-      for (const msg of messages) {
-        const chatMsg = { role: msg.role, content: msg.content };
-
-        // Inject text/PDF attachment content into the message
-        const textPart = formatTextAttachments(msg.attachments);
-        if (textPart) {
-          chatMsg.content = textPart + "\n\n" + chatMsg.content;
-        }
-
-        // Add images for multimodal models (Ollama `images` field)
-        const images = collectImages(msg.attachments);
-        if (images.length > 0) {
-          chatMsg.images = images;
-        }
-
-        chatMessages.push(chatMsg);
-      }
+      const chatMessages = buildOllamaMessages(messages, systemPrompt);
 
       try {
         const fullResponse = await streamingChatRequest(
@@ -413,7 +455,78 @@ export const OllamaProvider = ({ children }) => {
         throw error;
       }
     },
-    [getApiBaseUrl, buildHeaders], // stable
+    [getApiBaseUrl, buildHeaders, buildOllamaMessages], // stable
+  );
+
+  // Generate a response with tool calling support.
+  // Runs a request/execute loop until the model no longer emits tool_calls
+  // or maxIterations is reached, then streams the final answer.
+  const generateResponseWithTools = useCallback(
+    async (messages, model, systemPrompt, onChunk, options = {}) => {
+      const { toolConfig = {}, maxIterations = 3 } = options;
+      abortControllerRef.current = new AbortController();
+      const baseUrl = getApiBaseUrl();
+      const headers = buildHeaders();
+      let currentMessages = [...messages];
+
+      for (let iteration = 0; iteration < maxIterations; iteration++) {
+        // Non-streaming request so we can cleanly capture tool_calls.
+        const body = {
+          model,
+          messages: buildOllamaMessages(currentMessages, systemPrompt),
+          tools: AVAILABLE_TOOLS,
+          stream: false,
+        };
+
+        let response;
+        try {
+          response = await httpRequest(`${baseUrl}/api/chat`, {
+            method: "POST",
+            headers,
+            body: JSON.stringify(body),
+            signal: abortControllerRef.current.signal,
+          });
+        } catch (error) {
+          if (error.name === "AbortError") return "";
+          throw error;
+        }
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`Ollama API error (${response.status}): ${errorText || "Unknown error"}`);
+        }
+
+        const data = await response.json();
+        const assistantMessage = data.message || {};
+
+        if (!assistantMessage.tool_calls || assistantMessage.tool_calls.length === 0) {
+          // No more tools needed. Stream the final answer without tools.
+          return generateResponse(currentMessages, model, systemPrompt, onChunk);
+        }
+
+        // Notify the UI which tools are being invoked.
+        if (onChunk) onChunk("", "", { toolCalls: assistantMessage.tool_calls });
+
+        // Execute tools in parallel and append results to history.
+        const toolResults = await Promise.all(
+          assistantMessage.tool_calls.map(async (toolCall) => {
+            const result = await executeToolCall(toolCall, toolConfig);
+            return buildToolResultMessage(toolCall, result);
+          }),
+        );
+
+        currentMessages.push({
+          role: "assistant",
+          content: assistantMessage.content || "",
+          tool_calls: assistantMessage.tool_calls,
+        });
+        currentMessages.push(...toolResults);
+      }
+
+      // Max iterations reached: fall back to a normal generation without tools.
+      return generateResponse(currentMessages, model, systemPrompt, onChunk);
+    },
+    [getApiBaseUrl, buildHeaders, buildOllamaMessages, generateResponse],
   );
 
   // Abort an in-progress generation request
@@ -466,7 +579,9 @@ export const OllamaProvider = ({ children }) => {
     isCloudMode,
     checkConnection,
     getOllamaModels,
+    checkModelSupportsTools,
     generateResponse,
+    generateResponseWithTools,
     stopGeneration,
     getAllAvailableModels,
     cloudModels: CLOUD_MODELS,

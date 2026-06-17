@@ -85,6 +85,62 @@ export default defineConfig({
           // Pipe the incoming request body to the proxy request
           req.pipe(proxyReq);
         });
+
+        // Generic web proxy for browser builds so they can fetch arbitrary URLs.
+        // Reads the target URL from the X-Target-URL header.
+        server.middlewares.use("/web-proxy", (req, res, next) => {
+          const targetUrl = req.headers["x-target-url"];
+          if (!targetUrl) {
+            res.writeHead(400, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ error: "Missing X-Target-URL header" }));
+            return;
+          }
+
+          let proxyUrl;
+          try {
+            proxyUrl = new URL(targetUrl);
+          } catch (e) {
+            res.writeHead(400, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ error: "Invalid target URL", url: targetUrl }));
+            return;
+          }
+
+          const proxyHeaders = {};
+          for (const [key, value] of Object.entries(req.headers)) {
+            const lower = key.toLowerCase();
+            if (["origin", "referer", "host", "connection", "x-target-url"].includes(lower)) {
+              continue;
+            }
+            proxyHeaders[key] = value;
+          }
+
+          const isHttps = proxyUrl.protocol === "https:";
+          const httpModule = isHttps ? https : http;
+
+          const proxyReq = httpModule.request(
+            proxyUrl,
+            {
+              method: req.method,
+              headers: proxyHeaders,
+            },
+            (proxyRes) => {
+              const resHeaders = { ...proxyRes.headers };
+              delete resHeaders["transfer-encoding"];
+              res.writeHead(proxyRes.statusCode, resHeaders);
+              proxyRes.pipe(res);
+            },
+          );
+
+          proxyReq.on("error", (err) => {
+            console.error("Web proxy error:", err.message);
+            if (!res.headersSent) {
+              res.writeHead(502, { "Content-Type": "application/json" });
+              res.end(JSON.stringify({ error: "Proxy error", message: err.message }));
+            }
+          });
+
+          req.pipe(proxyReq);
+        });
       },
     },
   ],

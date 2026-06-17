@@ -32,7 +32,9 @@ import {
   CheckCircle as CheckCircleIcon,
   Error as ErrorIcon,
   Link as LinkIcon,
+  Search as SearchIcon,
 } from "@mui/icons-material";
+import { SEARCH_PROVIDERS } from "../tools";
 
 const SettingsPage = ({ sidebarOpen, onToggleSidebar }) => {
   const {
@@ -44,6 +46,12 @@ const SettingsPage = ({ sidebarOpen, onToggleSidebar }) => {
     setAutoSave,
     currentModel,
     setCurrentModel,
+    webSearchEnabled,
+    setWebSearchEnabled,
+    webSearchProvider,
+    setWebSearchProvider,
+    webSearchApiKey,
+    setWebSearchApiKey,
   } = useSettings();
 
   const {
@@ -65,6 +73,7 @@ const SettingsPage = ({ sidebarOpen, onToggleSidebar }) => {
   const [saveStatus, setSaveStatus] = useState(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showApiKey, setShowApiKey] = useState(false);
+  const [showWebSearchApiKey, setShowWebSearchApiKey] = useState(false);
   const [customModelName, setCustomModelName] = useState("");
 
   const handleRefreshModels = async () => {
@@ -310,6 +319,83 @@ const SettingsPage = ({ sidebarOpen, onToggleSidebar }) => {
                       after creating an account and running <code>ollama signin</code>.
                     </Alert>
                   )}
+                </CardContent>
+              </Card>
+            </Grid>
+
+            {/* Web Search / Agent Tools */}
+            <Grid item xs={12}>
+              <Card>
+                <CardHeader
+                  title="Web Search Agent"
+                  subheader="Allow the model to search the web for recent information"
+                  avatar={<SearchIcon sx={{ color: "#14b8a6" }} />}
+                />
+                <CardContent>
+                  <FormControlLabel
+                    control={
+                      <Switch
+                        checked={webSearchEnabled}
+                        onChange={(e) => setWebSearchEnabled(e.target.checked)}
+                      />
+                    }
+                    label="Enable web search tool calling"
+                  />
+
+                  <Typography
+                    variant="body2"
+                    sx={{ color: "#94a3b8", mt: 1, mb: 2, lineHeight: 1.6 }}
+                  >
+                    When enabled, tool-capable models (e.g. llama3, qwen3) can call web_search and
+                    web_fetch to answer questions requiring current information. Works
+                    out-of-the-box on Android and Tauri; browser development builds use the dev
+                    server proxy, while production browser builds still need an API-key provider or
+                    a backend proxy.
+                  </Typography>
+
+                  <FormControl fullWidth margin="normal" disabled={!webSearchEnabled}>
+                    <InputLabel>Search provider</InputLabel>
+                    <Select
+                      value={webSearchProvider}
+                      label="Search provider"
+                      onChange={(e) => setWebSearchProvider(e.target.value)}
+                    >
+                      {SEARCH_PROVIDERS.map((p) => (
+                        <MenuItem key={p.value} value={p.value}>
+                          {p.label}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+
+                  <TextField
+                    fullWidth
+                    label="Search API key"
+                    type={showWebSearchApiKey ? "text" : "password"}
+                    value={webSearchApiKey}
+                    onChange={(e) => setWebSearchApiKey(e.target.value)}
+                    margin="normal"
+                    disabled={!webSearchEnabled || webSearchProvider === "duckduckgo"}
+                    helperText={
+                      webSearchProvider === "duckduckgo"
+                        ? "DuckDuckGo does not require an API key. It works directly on Android/Tauri and through the dev proxy in browser development builds."
+                        : `Required for ${webSearchProvider}. Stored locally.`
+                    }
+                    InputProps={{
+                      endAdornment: (
+                        <InputAdornment position="end">
+                          <IconButton
+                            onClick={() => setShowWebSearchApiKey(!showWebSearchApiKey)}
+                            edge="end"
+                            size="small"
+                            sx={{ color: "#64748b" }}
+                          >
+                            {showWebSearchApiKey ? <VisibilityOff /> : <Visibility />}
+                          </IconButton>
+                        </InputAdornment>
+                      ),
+                    }}
+                  />
                 </CardContent>
               </Card>
             </Grid>

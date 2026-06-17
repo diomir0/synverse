@@ -15,6 +15,7 @@ import {
   Edit as EditIcon,
   ContentCopy as CopyIcon,
   Check as CopiedIcon,
+  Build as ToolIcon,
 } from "@mui/icons-material";
 import { fileSizeLabel } from "../utils/fileUtils";
 
@@ -189,6 +190,11 @@ const BotAvatar = styled(AvatarIcon)(({ theme }) => ({
   color: "#14b8a6",
 }));
 
+const ToolAvatar = styled(AvatarIcon)(({ theme }) => ({
+  backgroundColor: "rgba(99,102,241,0.12)",
+  color: "#818cf8",
+}));
+
 // Wrapper for a single message that adds a hover-reveal edit button.
 const EditableMessageRow = ({ message, isUser, isStreaming, isEditable, onEdit, children }) => {
   const [hovered, setHovered] = useState(false);
@@ -306,8 +312,45 @@ const MessageList = ({ messages = [], editableMessageId, onEditMessage }) => {
     <MessageContainer>
       {messages.map((message, index) => {
         const isUser = message.role === "user";
+        const isTool = message.role === "tool";
         const isStreaming = message.isStreaming;
         const isEditable = isUser && message.id === editableMessageId;
+
+        if (isTool) {
+          return (
+            <MessageRow key={message.id || index} $isuser={false}>
+              <ToolAvatar>
+                <ToolIcon sx={{ fontSize: 14 }} />
+              </ToolAvatar>
+              <Box
+                sx={{
+                  px: 2,
+                  py: 1,
+                  borderRadius: 2,
+                  bgcolor: "rgba(99,102,241,0.06)",
+                  border: "1px solid rgba(99,102,241,0.15)",
+                  color: "#a5b4fc",
+                  fontSize: "0.85rem",
+                  maxWidth: "80%",
+                  wordBreak: "break-word",
+                }}
+              >
+                <Typography
+                  variant="caption"
+                  sx={{ color: "#818cf8", fontWeight: 600, display: "block", mb: 0.5 }}
+                >
+                  Tool result · {message.tool_name || "unknown"}
+                </Typography>
+                <Typography
+                  variant="body2"
+                  sx={{ whiteSpace: "pre-wrap", fontFamily: '"JetBrains Mono", monospace' }}
+                >
+                  {message.content}
+                </Typography>
+              </Box>
+            </MessageRow>
+          );
+        }
 
         const messageContent = (
           <React.Fragment key={message.id || index}>
